@@ -54,7 +54,10 @@ if __name__ == '__main__':
     most_clothest_counts = 0
     for file_name in augmented_embeddings_files:
         embedding = torch.load(base_augmented_embeddings_path + '/' + file_name)
-        youtube_id = "_".join(file_name.removesuffix('.pt').split("_")[:-1])
+
+        file_parts = file_name.removesuffix('.pt').split("_")
+        augmentation_name = file_parts[-1]
+        youtube_id = "_".join(file_parts[:-1])
         augmented_embeddings_by_youtube_id[youtube_id] = embedding
 
         hits = qdrant.search(
@@ -73,6 +76,7 @@ if __name__ == '__main__':
                     "score": hit.score,
                     "youtube_id": youtube_id,
                     "file_name": file_name,
+                    "augmentation": augmentation_name,
                 })
                 break
 
@@ -83,4 +87,6 @@ if __name__ == '__main__':
     print("the most nearest accuracy", round(most_clothest_counts / len(augmented_embeddings_files), 2))
 
     Dataset.from_list(metrics_log).save_to_disk(metrics_log_path)
+
+    print(Dataset.from_list(metrics_log).to_pandas()['augmentation'].value_counts())
 
