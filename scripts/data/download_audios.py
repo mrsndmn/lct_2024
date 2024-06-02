@@ -89,6 +89,8 @@ def process(example):
 
 music_caps = datasets.load_dataset("google/MusicCaps", split='train')
 music_caps = music_caps.rename_columns({ 'ytid': 'youtube_id',  'start_s': 'start_time' })
+music_caps = music_caps.map(lambda x: { "file_name": x['youtube_id'] + '.wav' })
+music_caps.save_to_disk('./data/music_caps/audios.dataset')
 
 data_dir = './data/music_caps/audios'
 

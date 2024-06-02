@@ -10,4 +10,4 @@ class SequenceFingerPrinter():
     def fingerprint(self, audio_or_video) -> torch.Tensor:
         pass
 
-    def 
+    # def 
