@@ -2,10 +2,6 @@ from transformers import AutoFeatureExtractor, Wav2Vec2ForXVector
 from datasets import load_dataset
 import torch
 
-dataset = load_dataset("hf-internal-testing/librispeech_asr_demo", "clean", split="validation")
-dataset = dataset.sort("id")
-sampling_rate = dataset.features["audio"].sampling_rate
-
 feature_extractor = AutoFeatureExtractor.from_pretrained("anton-l/wav2vec2-base-superb-sv")
 model = Wav2Vec2ForXVector.from_pretrained("anton-l/wav2vec2-base-superb-sv")
 print(sum(p.numel() for p in model.parameters()))
