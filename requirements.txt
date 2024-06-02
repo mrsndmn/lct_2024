@@ -1,2 +1,4 @@
 qdrant-client==1.9.1
-
+soundfile
+datasets
+transformers
