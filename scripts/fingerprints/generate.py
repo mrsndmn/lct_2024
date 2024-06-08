@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from datasets import Dataset, Audio
 from transformers import AutoFeatureExtractor, Wav2Vec2ForXVector
 import os
@@ -10,18 +11,35 @@ class FingerprintAugmentedAudioConfig():
     sampling_rate = 16000
     base_audio_audio_path = 'data/music_caps/augmented_audios'
     dataset_path = 'data/music_caps/augmented_audios.dataset'
-
+    interval_duration_in_seconds = 5
+    interval_step = 2.5
+    batch_size = 1
 class FingerprintAudioConfig():
     embeddings_out_dir = 'data/music_caps/audio_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/music_caps/audios'
     dataset_path = 'data/music_caps/audios.dataset'
+    interval_duration_in_seconds = 5
+    interval_step = 2.5
+    batch_size = 1
 
+class FingerprintIndexAudios():
+    embeddings_out_dir = 'data/rutube/audio_embeddings'
+    sampling_rate = 16000
+    base_audio_audio_path = '/Users/d.tarasov/Downloads/14.RUTUBE/compressed_index_audios'
+    dataset_path = 'data/rutube/audios.dataset'
+    interval_duration_in_seconds = 5
+    interval_step = 2.5
+    batch_size = 1
+
+# требования к датасету:
+# file_name - должно быть просто название файлика
 
 if __name__ == '__main__':
 
     # config = FingerprintAugmentedAudioConfig()
-    config = FingerprintAudioConfig()
+    # config = FingerprintAudioConfig()
+    config = FingerprintIndexAudios()
 
     embeddings_out_dir = config.embeddings_out_dir
     sampling_rate = config.sampling_rate
@@ -45,17 +63,44 @@ if __name__ == '__main__':
     model = Wav2Vec2ForXVector.from_pretrained("anton-l/wav2vec2-base-superb-sv")
     print(sum(p.numel() for p in model.parameters()))
 
+    interval_duration_in_seconds = config.interval_duration_in_seconds
+    interval_step = config.interval_step
+    batch_size = config.batch_size
+
     # audio file is decoded on the fly
     for item in tqdm(audios_dataset):
         inputs = feature_extractor(
             [item['audio']['array']], sampling_rate=sampling_rate, return_tensors="pt", padding=True
         )
-        with torch.no_grad():
-            embeddings = model(**inputs).embeddings
 
-        embeddings = torch.nn.functional.normalize(embeddings, dim=-1).cpu()
+        interval_num_samples = interval_duration_in_seconds * sampling_rate
+        interval_step_num_samples = int(interval_step * sampling_rate)
 
-        # print("embeddings", embeddings.shape)
+        input_values = inputs['input_values']
+        inputs_shifted = []
+        for i in range(0, input_values.shape[-1], interval_step_num_samples):
+            # inputs['input_values'].shape[-1]
+            interval_right_boarder = min(i+interval_num_samples, input_values.shape[-1])
+            current_interval = input_values[:, i:interval_right_boarder]
+            if current_interval.shape[-1] < interval_num_samples:
+                padding_size = interval_num_samples - current_interval.shape[-1]
+                print(f"run padding for {padding_size}")
+                current_interval = F.pad(current_interval, [0, padding_size], 'constant', value=0)
 
-        file_name = embeddings_out_dir + '/' + item['file_name'].split('.')[0] + '.pt'
-        torch.save(embeddings, file_name)
+            print("current_interval", current_interval.shape)
+            inputs_shifted.append(current_interval)
+
+        inputs_shifted = torch.cat(inputs_shifted, dim=0)
+        print("inputs_shifted", inputs_shifted.shape, "input_values", input_values.shape)
+
+        for i in tqdm(range(0, inputs_shifted.shape[0], batch_size)):
+
+            with torch.no_grad():
+                max_index = min(i+batch_size, inputs_shifted.shape[-1])
+                embeddings = model(input_values=inputs_shifted[i:max_index]).embeddings
+
+            embeddings = torch.nn.functional.normalize(embeddings, dim=-1).cpu()
+
+            for j in range(embeddings.shape[0]):
+                file_name = embeddings_out_dir + '/' + item['file_name'].split('.')[0] + f"_{i+j}" + '.pt'
+                torch.save(embeddings[j:j+1], file_name)
