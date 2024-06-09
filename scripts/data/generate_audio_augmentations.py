@@ -14,6 +14,10 @@ from audio_augmentations.augmentations.pitch_shift import PitchShift
 from audio_augmentations.augmentations.polarity_inversion import PolarityInversion
 from audio_augmentations.augmentations.reverb import Reverb
 
+from pathlib import Path
+
+# from torchaudio.transforms import Speed
+
 import os
 
 import random
@@ -66,40 +70,41 @@ class RandomSilence(torch.nn.Module):
         return audio_clone
 
 
-
 if __name__ == '__main__':
 
-    augmented_audios_path = 'data/music_caps/augmented_audios'
+    augmented_audios_path = Path('data/music_caps/augmented_audios')
     os.makedirs(augmented_audios_path, exist_ok=True)
 
-    base_path = "./data/music_caps/audios"
+    base_path = Path("./data/music_caps/audios")
     downloaded_audios = set(os.listdir(base_path))
     augmented_audios = set(os.listdir(augmented_audios_path))
 
     expected_sample_rate = 16000
+    augmented_sample_duration_seconds = 15
 
     print("downloaded audios len", len(downloaded_audios))
 
-    noise = Noise()
+    noise = Noise(min_snr=0.1, max_snr=0.5)
     pitch_shift = PitchShift(n_samples=expected_sample_rate*5, sample_rate=expected_sample_rate)
     gain = Gain()
-    delay = Delay(sample_rate=expected_sample_rate) # симулирует эхо
+    delay = Delay(sample_rate=expected_sample_rate)  # симулирует эхо
     silence_shift = SilenceShift(sample_rate=expected_sample_rate)
     random_silence = RandomSilence(sample_rate=expected_sample_rate)
 
     reverb = Reverb(sample_rate=expected_sample_rate)
     hilow_pass = HighLowPass(sample_rate=expected_sample_rate)
     polarity_inversion = PolarityInversion()
+    # Speed()
 
     waveform_augmentations = [
         {
             "name": 'noise',
             "function": noise,
         },
-        {
-            "name": 'PitchShift',
-            "function": pitch_shift,
-        },
+        # {
+        #     "name": 'PitchShift',
+        #     "function": pitch_shift,
+        # },
         {
             "name": 'Gain',
             "function": gain,
@@ -128,6 +133,10 @@ if __name__ == '__main__':
             "name": 'PolarityInversion',
             "function": polarity_inversion,
         },
+        # {
+        #     "name": 'SpeedX1.2',
+        #     "function": polarity_inversion,
+        # },
         {
             "name": 'Compose',
             "function": Compose([
@@ -144,45 +153,52 @@ if __name__ == '__main__':
 
     result_dataset = []
 
+    background_waveform_zeros = torch.zeros([1, expected_sample_rate * augmented_sample_duration_seconds])
+
     for file_name in tqdm(sorted(downloaded_audios)):
 
+        background_waveform = background_waveform_zeros.clone()
         waveform = None
         sample_rate = None
+
         def get_waveform():
             global waveform, sample_rate
             if waveform is not None:
                 return waveform, sample_rate
-            waveform, sample_rate = torchaudio.load(base_path + '/' + file_name)
+            waveform, sample_rate = torchaudio.load(str(base_path.joinpath(file_name)))
             return waveform, sample_rate
 
         youtube_id = file_name.split('.')[0]
 
-        for augmentation in waveform_augmentations:
-            augmentation_name = augmentation['name']
-            augmentation_function = augmentation['function']
-            augmented_file_name = youtube_id + "_" + augmentation_name + ".wav"
+        augmentation = random.choice(waveform_augmentations)
+        augmentation_name = augmentation['name']
+        augmentation_function = augmentation['function']
+        augmented_file_name = youtube_id + "_" + augmentation_name + ".wav"
 
-            # if augmented_file_name not in augmented_audios:
-            if True:
-                waveform, sample_rate = get_waveform()
-                if sample_rate != 16000:
-                    print(f'sample rate is not ok, {sample_rate} {file_name}')
-                    continue
+        # if augmented_file_name not in augmented_audios:
+        waveform, sample_rate = get_waveform()
+        if sample_rate != expected_sample_rate:
+            print(f'sample rate is not ok, {sample_rate} {file_name}')
+            continue
 
-                augmented_audio = augmentation_function(waveform)
-                file_path_with_prefix = augmented_audios_path + '/' + augmented_file_name
-                torchaudio.save(file_path_with_prefix, augmented_audio, sample_rate=sample_rate)
+        augmented_audio = augmentation_function(waveform)
+        augmented_audio_offset = random.randint(0, background_waveform.shape[-1] - waveform.shape[-1])
+        background_waveform[:, augmented_audio_offset:(augmented_audio_offset+waveform.shape[-1])] = augmented_audio
+        background_waveform = noise(background_waveform)
 
-            dataset_item = {
-                "youtube_id": youtube_id,
-                "file_name": augmented_file_name,
-                "augmentation": augmentation_name,
-            }
+        file_path_with_prefix = augmented_audios_path.joinpath(augmented_file_name)
+        torchaudio.save(str(file_path_with_prefix), background_waveform, sample_rate=sample_rate)
 
-            result_dataset.append(dataset_item)
+        dataset_item = {
+            "youtube_id": youtube_id,
+            "file_name": augmented_file_name,
+            "augmentation": augmentation_name,
+            "augmented_audio_offset": augmented_audio_offset,
+        }
+
+        result_dataset.append(dataset_item)
 
     augmented_dataset = datasets.Dataset.from_list(result_dataset)
     target_dataset_path = "data/music_caps/augmented_audios.dataset"
     print("save to", target_dataset_path)
     augmented_dataset.save_to_disk(target_dataset_path)
-
