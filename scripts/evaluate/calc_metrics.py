@@ -12,8 +12,9 @@ class EvaluationConfig:
     interval_duration_in_seconds: int
     full_interval_duration_in_seconds: int
     sampling_rate: int
-    matched_threshold: float
+    # matched_threshold: float
 
+    distance_metric: models.Distance = field(default=models.Distance.EUCLID)
     base_embeddings_path: str = field(default='data/music_caps/audio_embeddings')
     base_augmented_embeddings_path: str = field(default='data/music_caps/augmented_embeddings')
     qdrant_collection_name: str = field(default="audio_embeddings")
@@ -63,7 +64,7 @@ def evaluate_matching(config: EvaluationConfig):
         collection_name=qdrant_collection_name,
         vectors_config=models.VectorParams(
             size=embedding_size,
-            distance=models.Distance.EUCLID
+            distance=config.distance_metric,
         )
     )
 
@@ -100,6 +101,7 @@ def evaluate_matching(config: EvaluationConfig):
 
             for i, hit in enumerate(hits):
                 hit_youtube_id = hit.payload['youtube_id']
+                hit_interval_i = hit.payload['interval_num']
 
                 interval_matches_true_injection = augmented_item['augmented_audio_offset'] < interval_i * config.interval_step * config.sampling_rate < augmented_item['augmented_audio_offset'] + config.sampling_rate * config.full_interval_duration_in_seconds
                 if i == 0 and youtube_id == hit_youtube_id and interval_matches_true_injection:
@@ -109,6 +111,7 @@ def evaluate_matching(config: EvaluationConfig):
                     "hit_i": i,
                     "hit_score": hit.score,
                     "hit_youtube_id": hit_youtube_id,
+                    "hit_interval_i": hit_interval_i,
                     "youtube_id": youtube_id,
                     "file_name": file_name,
                     "augmentation": augmentation_name,
@@ -121,13 +124,12 @@ def evaluate_matching(config: EvaluationConfig):
     print("augmented_embeddings_files", len(augmented_embeddings_files))
     print("found clothest:", len(metrics_log))
 
-    count_expected_to_match_interval = metrics_dataframe['interval_matches_true_injection'].sum()
-    print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
-
     metrics_dataset = Dataset.from_list(metrics_log)
     metrics_dataset.save_to_disk(metrics_log_path)
     metrics_dataframe = metrics_dataset.to_pandas()
 
+    count_expected_to_match_interval = metrics_dataframe['interval_matches_true_injection'].sum()
+    print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
     print(metrics_dataframe['augmentation'].value_counts())
 
     metrics_log_df_filtered = metrics_dataframe[metrics_dataframe['interval_matches_true_injection']]

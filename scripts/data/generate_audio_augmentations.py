@@ -70,6 +70,83 @@ class RandomSilence(torch.nn.Module):
         return audio_clone
 
 
+class AudioAugmentator():
+    def __init__(self, expected_sample_rate):
+        noise = Noise(min_snr=0.1, max_snr=0.5)
+        # pitch_shift = PitchShift(n_samples=expected_sample_rate*5, sample_rate=expected_sample_rate)
+        gain = Gain()
+        delay = Delay(sample_rate=expected_sample_rate)  # симулирует эхо
+        silence_shift = SilenceShift(sample_rate=expected_sample_rate)
+        random_silence = RandomSilence(sample_rate=expected_sample_rate)
+        reverb = Reverb(sample_rate=expected_sample_rate)
+        hilow_pass = HighLowPass(sample_rate=expected_sample_rate)
+        polarity_inversion = PolarityInversion()
+        # Speed()
+
+        self.waveform_augmentations = [
+            {
+                "name": 'noise',
+                "function": noise,
+            },
+            # {
+            #     "name": 'PitchShift',
+            #     "function": pitch_shift,
+            # },
+            {
+                "name": 'Gain',
+                "function": gain,
+            },
+            {
+                "name": 'Delay',
+                "function": delay,
+            },
+            {
+                "name": 'SilenceShift',
+                "function": silence_shift,
+            },
+            {
+                "name": 'RandomSilence',
+                "function": random_silence,
+            },
+            {
+                "name": 'Reverb',
+                "function": reverb,
+            },
+            {
+                "name": 'HighLowPass',
+                "function": hilow_pass,
+            },
+            {
+                "name": 'PolarityInversion',
+                "function": polarity_inversion,
+            },
+            # {
+            #     "name": 'SpeedX1.2',
+            #     "function": polarity_inversion,
+            # },
+            # {
+            #     "name": 'Compose',
+            #     "function": Compose([
+            #         RandomApply([noise], p=0.5),
+            #         RandomApply([pitch_shift], p=0.5),
+            #         RandomApply([gain], p=0.5),
+            #         RandomApply([delay], p=0.5),
+            #         RandomApply([reverb], p=0.5),
+            #         RandomApply([hilow_pass], p=0.5),
+            #         RandomApply([polarity_inversion], p=0.5),
+            #     ]),
+            # },
+        ]
+        return
+
+    def apply_random_augmentation(self, audio_waveform):
+        augmentation = self.get_random_augmentation()
+        return augmentation['function'](audio_waveform)
+
+    def get_random_augmentation(self):
+        return random.choice(self.waveform_augmentations)
+
+
 if __name__ == '__main__':
 
     augmented_audios_path = Path('data/music_caps/augmented_audios')
@@ -79,78 +156,14 @@ if __name__ == '__main__':
     downloaded_audios = set(os.listdir(base_path))
     augmented_audios = set(os.listdir(augmented_audios_path))
 
+    noise = Noise(min_snr=0.1, max_snr=0.5)
+
     expected_sample_rate = 16000
     augmented_sample_duration_seconds = 15
 
     print("downloaded audios len", len(downloaded_audios))
 
-    noise = Noise(min_snr=0.1, max_snr=0.5)
-    pitch_shift = PitchShift(n_samples=expected_sample_rate*5, sample_rate=expected_sample_rate)
-    gain = Gain()
-    delay = Delay(sample_rate=expected_sample_rate)  # симулирует эхо
-    silence_shift = SilenceShift(sample_rate=expected_sample_rate)
-    random_silence = RandomSilence(sample_rate=expected_sample_rate)
-
-    reverb = Reverb(sample_rate=expected_sample_rate)
-    hilow_pass = HighLowPass(sample_rate=expected_sample_rate)
-    polarity_inversion = PolarityInversion()
-    # Speed()
-
-    waveform_augmentations = [
-        {
-            "name": 'noise',
-            "function": noise,
-        },
-        # {
-        #     "name": 'PitchShift',
-        #     "function": pitch_shift,
-        # },
-        {
-            "name": 'Gain',
-            "function": gain,
-        },
-        {
-            "name": 'Delay',
-            "function": delay,
-        },
-        {
-            "name": 'SilenceShift',
-            "function": silence_shift,
-        },
-        {
-            "name": 'RandomSilence',
-            "function": random_silence,
-        },
-        {
-            "name": 'Reverb',
-            "function": reverb,
-        },
-        {
-            "name": 'HighLowPass',
-            "function": hilow_pass,
-        },
-        {
-            "name": 'PolarityInversion',
-            "function": polarity_inversion,
-        },
-        # {
-        #     "name": 'SpeedX1.2',
-        #     "function": polarity_inversion,
-        # },
-        {
-            "name": 'Compose',
-            "function": Compose([
-                RandomApply([noise], p=0.5),
-                RandomApply([pitch_shift], p=0.5),
-                RandomApply([gain], p=0.5),
-                RandomApply([delay], p=0.5),
-                RandomApply([reverb], p=0.5),
-                RandomApply([hilow_pass], p=0.5),
-                RandomApply([polarity_inversion], p=0.5),
-            ]),
-        },
-    ]
-
+    audio_augmentator = AudioAugmentator(expected_sample_rate=expected_sample_rate)
     result_dataset = []
 
     background_waveform_zeros = torch.zeros([1, expected_sample_rate * augmented_sample_duration_seconds])
@@ -170,7 +183,7 @@ if __name__ == '__main__':
 
         youtube_id = file_name.split('.')[0]
 
-        augmentation = random.choice(waveform_augmentations)
+        augmentation = audio_augmentator.get_random_augmentation()
         augmentation_name = augmentation['name']
         augmentation_function = augmentation['function']
         augmented_file_name = youtube_id + "_" + augmentation_name + ".wav"

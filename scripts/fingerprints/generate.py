@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
 from datasets import Dataset, Audio
-from transformers import AutoFeatureExtractor, Wav2Vec2ForXVector
+from scripts.train.finetuning import get_model
 import os
 from tqdm.auto import tqdm
 
@@ -55,6 +55,9 @@ class FingerprintConfig():
     embeddings_normalization: bool
     audio_normalization: bool
 
+    model_name: str
+    model_from_pretrained: Optional[str]
+
 
 # требования к датасету:
 # file_name - должно быть просто название файлика
@@ -87,8 +90,8 @@ def generate_fingerprints(config: FingerprintConfig):
     print("dataset len", len(audios_dataset))
     print(audios_dataset[0])
 
-    feature_extractor = AutoFeatureExtractor.from_pretrained("anton-l/wav2vec2-base-superb-sv")
-    model = Wav2Vec2ForXVector.from_pretrained("anton-l/wav2vec2-base-superb-sv")
+    model, feature_extractor = get_model(config.model_name, from_pretrained=config.model_from_pretrained)
+
     print(sum(p.numel() for p in model.parameters()))
 
 

@@ -1,3 +1,6 @@
 data/**
 *.wav
 .DS_Store
+wandb
+__pycache__
+

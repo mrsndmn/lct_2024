@@ -5,6 +5,7 @@ import time
 from scripts.fingerprints.generate import FingerprintConfig, generate_fingerprints
 from scripts.evaluate.calc_metrics import evaluate_matching, EvaluationConfig
 
+from qdrant_client import models
 
 class PipelineConfig:
     pipeline_dir = 'data/music_caps/pipeline'
@@ -12,15 +13,19 @@ class PipelineConfig:
     sampling_rate = 16000
 
     # Intervals Config
-    interval_step = 1
-    interval_duration_in_seconds = 3
+    interval_step = 2.5
+    interval_duration_in_seconds = 5
     full_interval_duration_in_seconds = 10  # максимальная длинна заимствованного интервала для валидации
 
-    matched_threshold = 0.9
+    # matched_threshold = 0.9
 
     # common data config
     embeddings_normalization = True
     audio_normalization = True
+
+    model_name = 'UniSpeechSatForXVector' # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/polished-meadow-36/'
+    # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
     validation_audios = 'data/music_caps/augmented_audios'
@@ -34,6 +39,7 @@ class PipelineConfig:
 
     # evaluation config
     augmented_dataset_path = 'data/music_caps/augmented_audios.dataset'
+    distance_metric = models.Distance.COSINE
 
 
 if __name__ == '__main__':
@@ -59,6 +65,8 @@ if __name__ == '__main__':
         batch_size=12,
         embeddings_normalization=pipeline_config.embeddings_normalization,
         audio_normalization=pipeline_config.audio_normalization,
+        model_name=pipeline_config.model_name,
+        model_from_pretrained=pipeline_config.model_from_pretrained,
     )
     generate_fingerprints(index_fingerprint_config)
 
@@ -76,6 +84,8 @@ if __name__ == '__main__':
         batch_size=12,
         embeddings_normalization=pipeline_config.embeddings_normalization,
         audio_normalization=pipeline_config.audio_normalization,
+        model_name=pipeline_config.model_name,
+        model_from_pretrained=pipeline_config.model_from_pretrained,
     )
     generate_fingerprints(validation_fingerprint_config)
 
@@ -89,7 +99,8 @@ if __name__ == '__main__':
         full_interval_duration_in_seconds=pipeline_config.full_interval_duration_in_seconds,
         interval_duration_in_seconds=pipeline_config.interval_duration_in_seconds,
         interval_step=pipeline_config.interval_step,
-        matched_threshold=pipeline_config.matched_threshold
+        distance_metric=pipeline_config.distance_metric,
+        # matched_threshold=pipeline_config.matched_threshold
     )
     evaluate_matching(eval_config)
 
