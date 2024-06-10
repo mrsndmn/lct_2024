@@ -16,4 +16,4 @@ dataset_items = {
 
 print("file_names", file_names[:10])
 
-datasets.Dataset.from_dict(dataset_items).save_to_disk("data/rutube/audios.dataset")
+datasets.Dataset.from_dict(dataset_items).save_to_disk(sys.argv[2])

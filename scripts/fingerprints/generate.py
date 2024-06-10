@@ -33,7 +33,7 @@ class FingerprintAudioConfig():
 class FingerprintIndexAudios():
     embeddings_out_dir = 'data/rutube/audio_embeddings'
     sampling_rate = 16000
-    base_audio_audio_path = '/Users/d.tarasov/Downloads/14.RUTUBE/compressed_index_audios'
+    base_audio_audio_path = 'data/compressed_index_audios/'
     dataset_path = 'data/rutube/audios.dataset'
     interval_duration_in_seconds = 5
     interval_step = 2.5
@@ -57,6 +57,16 @@ class FingerprintConfig():
 
     model_name: str
     model_from_pretrained: Optional[str]
+
+
+class FingerprintValAudios():
+    embeddings_out_dir = 'data/rutube/audio_val_embeddings'
+    sampling_rate = 16000
+    base_audio_audio_path = 'data/compressed_val_audios/'
+    dataset_path = 'data/rutube/audios_val.dataset'
+    interval_duration_in_seconds = 5
+    interval_step = 2.5
+    batch_size = 32
 
 
 # требования к датасету:
@@ -93,6 +103,10 @@ def generate_fingerprints(config: FingerprintConfig):
     model, feature_extractor = get_model(config.model_name, from_pretrained=config.model_from_pretrained)
 
     print(sum(p.numel() for p in model.parameters()))
+    
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("device", device)
+    model.to(device)
 
 
     # audio file is decoded on the fly
@@ -132,7 +146,7 @@ def generate_fingerprints(config: FingerprintConfig):
             for i in range(0, inputs_shifted.shape[0], batch_size):
 
                 max_index = min(i+batch_size, inputs_shifted.shape[-1])
-                embeddings = model(input_values=inputs_shifted[i:max_index]).embeddings
+                embeddings = model(input_values=inputs_shifted[i:max_index].to(device)).embeddings
 
                 if embeddings_normalization:
                     embeddings = torch.nn.functional.normalize(embeddings, dim=-1)

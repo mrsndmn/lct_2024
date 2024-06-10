@@ -4,10 +4,17 @@ import torch
 import os
 import pickle
 
-if __name__ == '__main__':
-
+class PCAConfig:
     base_embeddings_path = 'data/music_caps/audio_embeddings'
     base_augmented_embeddings_path = 'data/music_caps/augmented_embeddings'
+    n_components = 128
+
+if __name__ == '__main__':
+
+    config = PCAConfig()
+    base_embeddings_path = config.base_embeddings_path
+    base_augmented_embeddings_path = config.base_augmented_embeddings_path
+    n_components = config.n_components
 
     embeddings_files = sorted(os.listdir(base_embeddings_path))
     augmented_embeddings_files = sorted(os.listdir(base_augmented_embeddings_path))
@@ -28,7 +35,6 @@ if __name__ == '__main__':
     print("all_embeddings", all_embeddings.shape)
     print("all_augmented_embeddings", all_augmented_embeddings.shape)
 
-    n_components = 128
     pca = PCA(n_components=n_components)
 
     pca_embeddings = pca.fit_transform(all_embeddings)

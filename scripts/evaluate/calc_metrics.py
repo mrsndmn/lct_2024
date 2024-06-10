@@ -125,7 +125,7 @@ def evaluate_matching(config: EvaluationConfig):
     print("found clothest:", len(metrics_log))
 
     metrics_dataset = Dataset.from_list(metrics_log)
-    metrics_dataset.save_to_disk(metrics_log_path)
+    metrics_dataset.save_to_disk(metrics_log_path + "/metrics.dataset")
     metrics_dataframe = metrics_dataset.to_pandas()
 
     count_expected_to_match_interval = metrics_dataframe['interval_matches_true_injection'].sum()
