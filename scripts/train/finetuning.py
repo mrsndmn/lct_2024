@@ -41,7 +41,7 @@ class TrainingConfig():
     learning_rate = 3e-4
     model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
 
-    num_epochs = 2
+    num_epochs = 48
 
     training_dataset_path = 'data/music_caps/audios.dataset'
     audio_base_path = 'data/music_caps/audios'

@@ -7,13 +7,14 @@ from scripts.evaluate.calc_metrics import evaluate_matching, EvaluationConfig
 
 from qdrant_client import models
 
+
 class PipelineConfig:
     pipeline_dir = 'data/music_caps/pipeline'
 
     sampling_rate = 16000
 
     # Intervals Config
-    interval_step = 2.5
+    interval_step = 1
     interval_duration_in_seconds = 5
     full_interval_duration_in_seconds = 10  # максимальная длинна заимствованного интервала для валидации
 
@@ -21,10 +22,10 @@ class PipelineConfig:
 
     # common data config
     embeddings_normalization = True
-    audio_normalization = True
+    audio_normalization = False
 
-    model_name = 'UniSpeechSatForXVector' # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/polished-meadow-36/'
+    model_name = 'UniSpeechSatForXVector'  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/'
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
