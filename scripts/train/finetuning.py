@@ -49,9 +49,9 @@ class TrainingConfig():
     # batch_size = 50
     # learning_rate = 1e-3
 
-    freeze_skeleton = False
-    batch_size = 10
-    learning_rate = 1e-4
+    freeze_skeleton = True
+    batch_size = 50
+    learning_rate = 3e-4
 
     model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
     save_and_evaluate_model_every_epoch = 5
@@ -84,7 +84,7 @@ class NoopAudioAugmentator:
         return waveform
     
 def min_max_normalize(audio_waveform):
-    audio_waveform = (audio_waveform - audio_waveform.min(dim=-1, keepdim=True).values) / (audio_waveform.max(dim=-1, keepdim=True).values - audio_waveform.min(dim=-1, keepdim=True).values) * 2 - 1
+    audio_waveform = (audio_waveform - audio_waveform.min(dim=-1, keepdim=True).values) / (audio_waveform.max(dim=-1, keepdim=True).values - audio_waveform.min(dim=-1, keepdim=True).values + 1e-6) * 2 - 1
     return audio_waveform
 
 def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
@@ -156,13 +156,15 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                 for i in range(audio_waveforms.shape[0]):
                     # augmented_audio_waveforms_1[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
                     augmented_audio_waveforms_1 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
-                    augmented_audio_waveforms_1 = min_max_normalize(augmented_audio_waveforms_1)
+                    if config.normalize_audio:
+                        augmented_audio_waveforms_1 = min_max_normalize(augmented_audio_waveforms_1)
                     augmented_audio_waveforms.append(augmented_audio_waveforms_1[0].cpu().numpy())
 
                 for i in range(audio_waveforms.shape[0]):
                     # augmented_audio_waveforms_2[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
                     augmented_audio_waveforms_2 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
-                    augmented_audio_waveforms_2 = min_max_normalize(augmented_audio_waveforms_2)
+                    if config.normalize_audio:
+                        augmented_audio_waveforms_2 = min_max_normalize(augmented_audio_waveforms_2)
                     augmented_audio_waveforms.append(augmented_audio_waveforms_2[0].cpu().numpy())
 
 
@@ -182,7 +184,10 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
             )
             model_output = model_output.embeddings
 
-            model_output = model_output / model_output.norm(dim=-1, keepdim=True)
+            model_output = model_output / (model_output.norm(dim=-1, keepdim=True) + 1e-6)
+            if model_output.isnan().any().item():
+                raise Exception("model_output is nan!")
+
             # print("model_output", model_output.shape, "min", model_output.min(), "max", model_output.max())
             x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2, dim=0)
             # print("model_inputs['input_values']", model_inputs['input_values'].shape)
@@ -192,16 +197,30 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
             # todo logit scale like in clip?
             # print("model.logit_scale", model.logit_scale.min().item(), model.logit_scale.max().item())
             logit_scale = model.logit_scale.exp()
+            if logit_scale.isnan().item():
+                raise Exception("logit_scale is nan!")
+
             logits_per_1 = torch.matmul(x_vectors_1, x_vectors_2.t()) * logit_scale
+            if logits_per_1.isnan().any().item():
+                raise Exception("logits_per_1 is nan!")
+
             # print("logits_per_1", logits_per_1.shape, "min", logits_per_1.min().item(), "max", logits_per_1.max().item())
 
             loss = clip_loss(logits_per_1)
-            metric_logger.log({"loss": loss.item()})
             pbar.set_description(f"Epoch={epoch_i}; Loss={loss.item():.3f}")
 
             model.zero_grad()
             loss.backward()
+            if loss.isnan().item():
+                raise Exception("loss is nan!")
             
+            metric_logger.log({
+                "loss": loss.item(),
+                "debug/logit_scale": model.logit_scale.item(),
+                "debug/logit_scale_grad": model.logit_scale.grad.item(),
+                "debug/feature_extractor.weight.grad.norm": model.feature_extractor.weight.grad.norm(2),
+                "debug/feature_extractor.bias.grad.norm": model.feature_extractor.bias.grad.norm(2),
+            })
             # print("weight.grad.norm", model.feature_extractor.weight.grad.norm(2))
             # print("bias.grad.norm", model.feature_extractor.bias.grad.norm(2))
 
@@ -220,7 +239,7 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                     full_interval_duration_in_seconds = 10,  # максимальная длинна заимствованного интервала для валидации
                     # common data config
                     embeddings_normalization = True,
-                    audio_normalization = False,
+                    audio_normalization = config.normalize_audio,
 
                     model_name = config.model_name,
                     model_from_pretrained = model_checkpoint_path,

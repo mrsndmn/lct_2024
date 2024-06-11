@@ -105,8 +105,17 @@ def evaluate_matching(config: EvaluationConfig):
                 hit_youtube_id = hit.payload['youtube_id']
                 hit_interval_i = hit.payload['interval_num']
 
-                interval_matches_true_injection = augmented_item['augmented_audio_offset'] < interval_i * config.interval_step * config.sampling_rate < augmented_item['augmented_audio_offset'] + config.sampling_rate * config.full_interval_duration_in_seconds
-                if i == 0 and youtube_id == hit_youtube_id and interval_matches_true_injection:
+                # оффсет кол-ва сэмплов для начала интервала
+                interval_start_offset = interval_i * config.interval_step * config.sampling_rate
+                # длительность полного интервала
+                full_interval_dutation_samples = config.sampling_rate * config.full_interval_duration_in_seconds
+
+                # Попадает ли заданный интервал в реальный отрезок полного фрагмента?
+                interval_matches_true_injection = augmented_item['augmented_audio_offset'] <  interval_start_offset < augmented_item['augmented_audio_offset'] + full_interval_dutation_samples
+
+                # Должен ли текуший интервал быть задетекчен матчингом (с учетом длительности интервала)
+                interval_should_match = augmented_item['augmented_audio_offset'] <  interval_start_offset < augmented_item['augmented_audio_offset'] + full_interval_dutation_samples - ((config.interval_duration_in_seconds - config.interval_step) * config.sampling_rate)
+                if i == 0 and youtube_id == hit_youtube_id and interval_should_match:
                     most_clothest_counts += 1
 
                 metrics_log.append({
@@ -119,6 +128,7 @@ def evaluate_matching(config: EvaluationConfig):
                     "augmentation": augmentation_name,
                     "interval_i": interval_i,
                     "interval_matches_true_injection": interval_matches_true_injection,
+                    "interval_should_match": interval_should_match,
                     "augmented_audio_offset": augmented_item['augmented_audio_offset'],
                 })
 
@@ -131,7 +141,7 @@ def evaluate_matching(config: EvaluationConfig):
     metrics_dataset.save_to_disk(metrics_log_path + "/metrics.dataset")
     metrics_dataframe = metrics_dataset.to_pandas()
 
-    count_expected_to_match_interval = metrics_dataframe['interval_matches_true_injection'].sum()
+    count_expected_to_match_interval = metrics_dataframe['interval_should_match'].sum()
     if config.verbose:
         print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
         print(metrics_dataframe['augmentation'].value_counts())

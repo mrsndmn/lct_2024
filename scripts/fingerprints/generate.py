@@ -115,7 +115,7 @@ def generate_fingerprints(config: FingerprintConfig):
         item_audio = item['audio']['array']
 
         if audio_normalization:
-            item_audio = (item_audio - item_audio.min()) / (item_audio.max() - item_audio.min()) * 2.0 - 1.0
+            item_audio = (item_audio - item_audio.min()) / (item_audio.max() - item_audio.min() + 1e-6) * 2.0 - 1.0
 
         inputs = feature_extractor(
             [item_audio], sampling_rate=sampling_rate, return_tensors="pt", padding=True

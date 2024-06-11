@@ -24,7 +24,7 @@ class PipelineConfig:
 
     # common data config
     embeddings_normalization: bool = field(default=True)
-    audio_normalization: bool = field(default=False)
+    audio_normalization: bool = field(default=True)
 
     model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
     model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/')
