@@ -21,6 +21,8 @@ class EvaluationConfig:
     metrics_log_path: str = field(default='data/music_caps/metrics')
     augmented_dataset_path: str = field(default="data/music_caps/augmented_audios.dataset")
 
+    verbose: bool = field(default=False)
+
 
 
 def evaluate_matching(config: EvaluationConfig):
@@ -120,27 +122,33 @@ def evaluate_matching(config: EvaluationConfig):
                     "augmented_audio_offset": augmented_item['augmented_audio_offset'],
                 })
 
-    print("no_embeddings_for_files", no_embeddings_for_files)
-    print("augmented_embeddings_files", len(augmented_embeddings_files))
-    print("found clothest:", len(metrics_log))
+    if config.verbose:
+        print("no_embeddings_for_files", no_embeddings_for_files)
+        print("augmented_embeddings_files", len(augmented_embeddings_files))
+        print("found clothest:", len(metrics_log))
 
     metrics_dataset = Dataset.from_list(metrics_log)
     metrics_dataset.save_to_disk(metrics_log_path + "/metrics.dataset")
     metrics_dataframe = metrics_dataset.to_pandas()
 
     count_expected_to_match_interval = metrics_dataframe['interval_matches_true_injection'].sum()
-    print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
-    print(metrics_dataframe['augmentation'].value_counts())
+    if config.verbose:
+        print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
+        print(metrics_dataframe['augmentation'].value_counts())
 
     metrics_log_df_filtered = metrics_dataframe[metrics_dataframe['interval_matches_true_injection']]
     metrics_log_df_filtered_first_hit = metrics_log_df_filtered[metrics_log_df_filtered['hit_i'] == 0]
     metrics_log_df_filtered_first_hit_match = metrics_log_df_filtered_first_hit[metrics_log_df_filtered_first_hit['hit_youtube_id'] == metrics_log_df_filtered_first_hit['youtube_id']]
 
     matched_videos_found_intervals = metrics_log_df_filtered_first_hit_match['youtube_id'].value_counts()
-    print("matched_videos", len(matched_videos_found_intervals))
-    print("matched_videos_found_intervals", matched_videos_found_intervals)
-    print(f"found_intervals_distribution (at most {config.full_interval_duration_in_seconds / config.interval_step})", matched_videos_found_intervals.value_counts())
+    if config.verbose:
+        print("matched_videos", len(matched_videos_found_intervals))
+        print("matched_videos_found_intervals", matched_videos_found_intervals)
+        print(f"found_intervals_distribution (at most {config.full_interval_duration_in_seconds / config.interval_step})", matched_videos_found_intervals.value_counts())
 
+    return {
+        "accuracy": round(most_clothest_counts / count_expected_to_match_interval, 2),
+    }
 
 if __name__ == '__main__':
     config = EvaluationConfig()

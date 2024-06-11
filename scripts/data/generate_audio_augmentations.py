@@ -72,7 +72,7 @@ class RandomSilence(torch.nn.Module):
 
 class AudioAugmentator():
     def __init__(self, expected_sample_rate):
-        noise = Noise(min_snr=0.1, max_snr=0.5)
+        noise = Noise(min_snr=0.1, max_snr=0.2)
         # pitch_shift = PitchShift(n_samples=expected_sample_rate*5, sample_rate=expected_sample_rate)
         gain = Gain()
         delay = Delay(sample_rate=expected_sample_rate)  # симулирует эхо

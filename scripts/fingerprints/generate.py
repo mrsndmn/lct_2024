@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 import torch
 import torch.nn.functional as F
 from datasets import Dataset, Audio
-from scripts.train.finetuning import get_model
+from avm.models import get_model
 import os
 from tqdm.auto import tqdm
 
@@ -97,15 +97,15 @@ def generate_fingerprints(config: FingerprintConfig):
     if config.few_dataset_samples is not None:
         audios_dataset = audios_dataset.select(range(config.few_dataset_samples))
 
-    print("dataset len", len(audios_dataset))
-    print(audios_dataset[0])
+    # print("dataset len", len(audios_dataset))
+    # print(audios_dataset[0])
 
     model, feature_extractor = get_model(config.model_name, from_pretrained=config.model_from_pretrained)
 
-    print(sum(p.numel() for p in model.parameters()))
+    # print(sum(p.numel() for p in model.parameters()))
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print("device", device)
+    # print("device", device)
     model.to(device)
 
 

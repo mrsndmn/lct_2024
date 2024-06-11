@@ -8,7 +8,6 @@ from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 from dataclasses import dataclass
-from transformers import AutoFeatureExtractor, Wav2Vec2ForXVector, Data2VecAudioForXVector, WavLMForXVector, UniSpeechSatForXVector
 from transformers import DefaultDataCollator
 
 from datasets import Dataset, Audio
@@ -17,9 +16,14 @@ from tqdm.auto import tqdm
 import wandb
 from wandb import sdk as wandb_sdk
 
-import os
+from qdrant_client import models
 
+from scripts.pipeline.pipeline import PipelineConfig, run_pipeline
+
+import os
 from scripts.data.generate_audio_augmentations import AudioAugmentator
+
+from avm.models import get_model
 
 # contrastive loss function, adapted from
 # https://sachinruk.github.io/blog/pytorch/pytorch%20lightning/loss%20function/gpu/2021/03/07/CLIP.html
@@ -30,18 +34,29 @@ def contrastive_loss(logits: torch.Tensor) -> torch.Tensor:
 def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
     caption_loss = contrastive_loss(similarity)
     image_loss = contrastive_loss(similarity.T)
+    # print("caption_loss", caption_loss)
+    # print("image_loss", image_loss)
     return (caption_loss + image_loss) / 2.0
 
 
 @dataclass
 class TrainingConfig():
     model_name = 'UniSpeechSatForXVector'
+    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/'
 
+    # Head Training
+    # freeze_skeleton = True
+    # batch_size = 50
+    # learning_rate = 1e-3
+
+    freeze_skeleton = False
     batch_size = 10
-    learning_rate = 3e-4
-    model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
+    learning_rate = 1e-4
 
-    num_epochs = 48
+    model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
+    save_and_evaluate_model_every_epoch = 5
+
+    num_epochs = 30
 
     training_dataset_path = 'data/music_caps/audios.dataset'
     audio_base_path = 'data/music_caps/audios'
@@ -58,34 +73,19 @@ def freeze_model(model):
 
     return
 
-
-def get_model(model_name, from_pretrained=None):
-    if model_name == 'Wav2Vec2ForXVector':
-        feature_extractor = AutoFeatureExtractor.from_pretrained("anton-l/wav2vec2-base-superb-sv")
-        model = Wav2Vec2ForXVector.from_pretrained("anton-l/wav2vec2-base-superb-sv")
-    elif model_name == 'Data2VecAudioForXVector':
-        feature_extractor = AutoFeatureExtractor.from_pretrained("hf-tiny-model-private/tiny-random-Data2VecAudioForXVector")
-        model = Data2VecAudioForXVector.from_pretrained("hf-tiny-model-private/tiny-random-Data2VecAudioForXVector")
-    elif model_name == 'WavLMForXVector':
-        feature_extractor = AutoFeatureExtractor.from_pretrained("hf-tiny-model-private/tiny-random-WavLMForXVector")
-        model = WavLMForXVector.from_pretrained("hf-tiny-model-private/tiny-random-WavLMForXVector")
-    elif model_name == 'UniSpeechSatForXVector':
-        feature_extractor = AutoFeatureExtractor.from_pretrained("microsoft/unispeech-sat-base-plus-sv")
-
-        if from_pretrained is None:
-            from_pretrained = "microsoft/unispeech-sat-base-plus-sv"
-
-        model = UniSpeechSatForXVector.from_pretrained(from_pretrained)
-    else:
-        raise ValueError(f"unknown model: {model_name}")
-
-    return model, feature_extractor
-
-
-def random_subsequence(audio_waveforms, n_frames):
-    start_frame = random.randint(0, audio_waveforms.shape[-1] - n_frames)
+def random_subsequence(audio_waveforms, n_frames, start_frame=None):
+    if start_frame is None:
+        start_frame = random.randint(0, audio_waveforms.shape[-1] - n_frames)
     return audio_waveforms[start_frame:start_frame+n_frames]
 
+
+class NoopAudioAugmentator:
+    def apply_random_augmentation(self, waveform):
+        return waveform
+    
+def min_max_normalize(audio_waveform):
+    audio_waveform = (audio_waveform - audio_waveform.min(dim=-1, keepdim=True).values) / (audio_waveform.max(dim=-1, keepdim=True).values - audio_waveform.min(dim=-1, keepdim=True).values) * 2 - 1
+    return audio_waveform
 
 def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     # Dataloaders
@@ -97,30 +97,44 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     training_dataset = training_dataset.map(lambda x: {"audio": config.audio_base_path + '/' + x['file_name']})
     training_dataset = training_dataset.cast_column('audio', Audio(sampling_rate=config.sampling_rate))
     training_dataset = training_dataset.filter(lambda x: x['audio']['array'].shape[-1] >= config.sampling_rate * config.interval_duration_in_seconds)
+    training_dataset = training_dataset.remove_columns([x for x in training_dataset.column_names if x != 'audio'])
 
     if config.few_dataset_samples is not None:
         training_dataset = training_dataset.select(range(config.few_dataset_samples))
 
-    total_expected_frames = config.sampling_rate * config.interval_duration_in_seconds
-    training_dataset = training_dataset.map(lambda x: {"audio_waveform": random_subsequence(x['audio']['array'], total_expected_frames)})
-    training_dataset = training_dataset.remove_columns([x for x in training_dataset.column_names if x != 'audio_waveform'])
 
     print("training_dataset", training_dataset)
-    print("training_dataset[0]", torch.tensor(training_dataset[0]['audio_waveform']).shape)
+    # print("training_dataset[0]", torch.tensor(training_dataset[0]['audio_waveform']).shape)
 
     audio_augmentator = AudioAugmentator(expected_sample_rate=config.sampling_rate)
+    # audio_augmentator = NoopAudioAugmentator()
+
+    default_data_collator = DefaultDataCollator()
+    def collate_fn(samples):
+        total_expected_frames = config.sampling_rate * config.interval_duration_in_seconds
+
+        processed_samples = []
+        for sample in samples:
+            rand_subsequence = random_subsequence(sample['audio']['array'], total_expected_frames)
+            processed_samples.append({
+                "audio_waveform": rand_subsequence
+            })
+
+        return default_data_collator(processed_samples)
+
 
     training_dataloader = DataLoader(
         training_dataset,
         batch_size=config.batch_size,
         shuffle=True,
         drop_last=True,
-        collate_fn=DefaultDataCollator(),
+        collate_fn=collate_fn,
     )
 
     # Model and optimizer
-    model, feature_extractor = get_model(config.model_name)
-    freeze_model(model.unispeech_sat)
+    model, feature_extractor = get_model(config.model_name, config.from_pretrained)
+    if config.freeze_skeleton:
+        freeze_model(model.unispeech_sat)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
@@ -130,14 +144,10 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     print("trainable model params", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     for epoch_i in range(config.num_epochs):
-        for batch in tqdm(training_dataloader, desc=f"Epoch {epoch_i}"):
-
+        pbar = tqdm(training_dataloader)
+        for batch in pbar:
             with torch.no_grad():
-                audio_waveforms = batch['audio_waveform'].to(device)
-
-                # todo normalize audio?
-                # if config.normalize_audio:
-                #     audio_waveforms = (audio_waveforms - audio_waveforms.min(dim=-1, keepdim=True).values) / (audio_waveforms.max(dim=-1, keepdim=True).values - audio_waveforms.max(dim=-1, keepdim=True).values) * 2 - 1
+                audio_waveforms = batch['audio_waveform'].to(torch.float32)
 
                 # print(audio_waveforms.shape)
                 augmented_audio_waveforms = []
@@ -146,12 +156,15 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                 for i in range(audio_waveforms.shape[0]):
                     # augmented_audio_waveforms_1[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
                     augmented_audio_waveforms_1 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
+                    augmented_audio_waveforms_1 = min_max_normalize(augmented_audio_waveforms_1)
                     augmented_audio_waveforms.append(augmented_audio_waveforms_1[0].cpu().numpy())
 
                 for i in range(audio_waveforms.shape[0]):
                     # augmented_audio_waveforms_2[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
                     augmented_audio_waveforms_2 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
+                    augmented_audio_waveforms_2 = min_max_normalize(augmented_audio_waveforms_2)
                     augmented_audio_waveforms.append(augmented_audio_waveforms_2[0].cpu().numpy())
+
 
                 # print("augmented_audio_waveforms_1", augmented_audio_waveforms_1.shape)
                 # print("augmented_audio_waveforms_2", augmented_audio_waveforms_2.shape)
@@ -170,17 +183,66 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
             model_output = model_output.embeddings
 
             model_output = model_output / model_output.norm(dim=-1, keepdim=True)
-            x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2)
+            # print("model_output", model_output.shape, "min", model_output.min(), "max", model_output.max())
+            x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2, dim=0)
+            # print("model_inputs['input_values']", model_inputs['input_values'].shape)
+            # print("x_vectors_1.shape", x_vectors_1.shape)
+            # print("x_vectors_2.shape", x_vectors_2.shape)
 
             # todo logit scale like in clip?
-            logits_per_1 = torch.matmul(x_vectors_1, x_vectors_2.t())
+            # print("model.logit_scale", model.logit_scale.min().item(), model.logit_scale.max().item())
+            logit_scale = model.logit_scale.exp()
+            logits_per_1 = torch.matmul(x_vectors_1, x_vectors_2.t()) * logit_scale
+            # print("logits_per_1", logits_per_1.shape, "min", logits_per_1.min().item(), "max", logits_per_1.max().item())
 
             loss = clip_loss(logits_per_1)
             metric_logger.log({"loss": loss.item()})
+            pbar.set_description(f"Epoch={epoch_i}; Loss={loss.item():.3f}")
 
             model.zero_grad()
             loss.backward()
+            
+            # print("weight.grad.norm", model.feature_extractor.weight.grad.norm(2))
+            # print("bias.grad.norm", model.feature_extractor.bias.grad.norm(2))
+
             optimizer.step()
+
+        if epoch_i != 0 and epoch_i % config.save_and_evaluate_model_every_epoch == 0:
+            model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
+            model.save_pretrained(model_checkpoint_path)
+
+            pipeline_config = PipelineConfig(
+                    pipeline_dir = 'data/music_caps/pipeline',
+                    sampling_rate = 16000,
+                    # Intervals Config
+                    interval_step = 1,
+                    interval_duration_in_seconds = config.interval_duration_in_seconds,
+                    full_interval_duration_in_seconds = 10,  # максимальная длинна заимствованного интервала для валидации
+                    # common data config
+                    embeddings_normalization = True,
+                    audio_normalization = False,
+
+                    model_name = config.model_name,
+                    model_from_pretrained = model_checkpoint_path,
+                    # model_name = 'Wav2Vec2ForXVector'
+
+                    # Validation Data Config
+                    validation_audios = 'data/music_caps/augmented_audios',
+                    validation_dataset = 'data/music_caps/augmented_audios.dataset',
+                    few_validation_samples = 10,
+
+                    # Index Data Config
+                    index_audios = 'data/music_caps/audios',
+                    index_dataset = 'data/music_caps/audios.dataset',
+                    few_index_samples = 10,
+
+                    # evaluation config
+                    augmented_dataset_path = 'data/music_caps/augmented_audios.dataset',
+                    distance_metric = models.Distance.COSINE,
+            )
+            metrics = run_pipeline(pipeline_config)
+            print("metrics", metrics)
+            metric_logger.log(metrics)
 
     model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
     model.save_pretrained(model_checkpoint_path)

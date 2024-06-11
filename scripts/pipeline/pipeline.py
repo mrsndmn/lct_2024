@@ -7,49 +7,52 @@ from scripts.evaluate.calc_metrics import evaluate_matching, EvaluationConfig
 
 from qdrant_client import models
 
+from dataclasses import dataclass, field
 
+@dataclass
 class PipelineConfig:
-    pipeline_dir = 'data/music_caps/pipeline'
+    pipeline_dir: str = field(default='data/music_caps/pipeline')
 
-    sampling_rate = 16000
+    sampling_rate: int = field(default=16000)
 
     # Intervals Config
-    interval_step = 1
-    interval_duration_in_seconds = 5
-    full_interval_duration_in_seconds = 10  # максимальная длинна заимствованного интервала для валидации
+    interval_step: int = field(default=1)
+    interval_duration_in_seconds: int = field(default=5)
+    full_interval_duration_in_seconds: int = field(default=10)  # максимальная длинна заимствованного интервала для валидации
 
     # matched_threshold = 0.9
 
     # common data config
-    embeddings_normalization = True
-    audio_normalization = False
+    embeddings_normalization: bool = field(default=True)
+    audio_normalization: bool = field(default=False)
 
-    model_name = 'UniSpeechSatForXVector'  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/'
+    model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
+    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/')
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
-    validation_audios = 'data/music_caps/augmented_audios'
-    validation_dataset = 'data/music_caps/augmented_audios.dataset'
-    few_validation_samples = 10
+    validation_audios: str = field(default='data/music_caps/augmented_audios')
+    validation_dataset: str = field(default='data/music_caps/augmented_audios.dataset')
+    few_validation_samples: int = field(default=10)
 
     # Index Data Config
-    index_audios = 'data/music_caps/audios'
-    index_dataset = 'data/music_caps/audios.dataset'
-    few_index_samples = 10
+    index_audios: str = field(default= 'data/music_caps/audios')
+    index_dataset: str = field(default= 'data/music_caps/audios.dataset')
+    few_index_samples: int = field(default= 10)
 
     # evaluation config
-    augmented_dataset_path = 'data/music_caps/augmented_audios.dataset'
-    distance_metric = models.Distance.COSINE
+    augmented_dataset_path: str = field(default='data/music_caps/augmented_audios.dataset')
+    distance_metric: models.Distance = field(default=models.Distance.COSINE)
+
+    verbose: bool = field(default=False)
 
 
-if __name__ == '__main__':
+def run_pipeline(pipeline_config: PipelineConfig):
 
-    pipeline_config = PipelineConfig()
     pipeline_config.pipeline_dir = os.path.join(pipeline_config.pipeline_dir, str(int(time.time())))
     os.makedirs(pipeline_config.pipeline_dir)
 
-    print("pipeline_config.pipeline_dir", pipeline_config.pipeline_dir)
+    # print("pipeline_config.pipeline_dir", pipeline_config.pipeline_dir)
 
     index_embeddings_directory = tempfile.TemporaryDirectory(prefix="index_embeddings_", dir=pipeline_config.pipeline_dir)
     index_embeddings_directory = os.path.join(pipeline_config.pipeline_dir, 'index_embeddings')
@@ -102,7 +105,11 @@ if __name__ == '__main__':
         interval_step=pipeline_config.interval_step,
         distance_metric=pipeline_config.distance_metric,
         # matched_threshold=pipeline_config.matched_threshold
+        verbose=pipeline_config.verbose
     )
-    evaluate_matching(eval_config)
+    return evaluate_matching(eval_config)
 
-    # evaluation_config = TODO
+if __name__ == '__main__':
+
+    pipeline_config = PipelineConfig()
+    run_pipeline(pipeline_config)
