@@ -5,28 +5,28 @@ import os
 import pickle
 
 class PCAConfig:
-    base_embeddings_path = 'data/music_caps/audio_embeddings'
-    base_augmented_embeddings_path = 'data/music_caps/augmented_embeddings'
+    index_embeddings_path = 'data/music_caps/audio_embeddings'
+    query_embeddings_path = 'data/music_caps/augmented_embeddings'
     n_components = 128
 
 if __name__ == '__main__':
 
     config = PCAConfig()
-    base_embeddings_path = config.base_embeddings_path
-    base_augmented_embeddings_path = config.base_augmented_embeddings_path
+    index_embeddings_path = config.index_embeddings_path
+    query_embeddings_path = config.query_embeddings_path
     n_components = config.n_components
 
-    embeddings_files = sorted(os.listdir(base_embeddings_path))
-    augmented_embeddings_files = sorted(os.listdir(base_augmented_embeddings_path))
+    embeddings_files = sorted(os.listdir(index_embeddings_path))
+    augmented_embeddings_files = sorted(os.listdir(query_embeddings_path))
 
     all_embeddings = []
     for file_name in embeddings_files:
-        embedding = torch.load(base_embeddings_path + '/' + file_name)
+        embedding = torch.load(index_embeddings_path + '/' + file_name)
         all_embeddings.append(embedding)
 
     all_augmented_embeddings = []
     for file_name in augmented_embeddings_files:
-        embedding = torch.load(base_augmented_embeddings_path + '/' + file_name)
+        embedding = torch.load(query_embeddings_path + '/' + file_name)
         all_augmented_embeddings.append(embedding)
 
     all_embeddings = torch.cat(all_embeddings, dim=0).numpy()

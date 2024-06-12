@@ -8,37 +8,37 @@ import os
 from tqdm.auto import tqdm
 
 
-class FingerprintAugmentedAudioConfig():
-    embeddings_out_dir = 'data/music_caps/augmented_embeddings'
+class FingerprintValAudios():
+    embeddings_out_dir = 'data/rutube/audio_val_embeddings'
     sampling_rate = 16000
-    base_audio_audio_path = 'data/music_caps/augmented_audios'
-    dataset_path = 'data/music_caps/augmented_audios.dataset'
+    base_audio_audio_path = 'data/rutube/compressed_val_audios/'
+    dataset_path = 'data/rutube/compressed_val_audios.dataset'
+    few_dataset_samples = None
+
     interval_duration_in_seconds = 5
-    interval_step = 2.5
-    batch_size = 12
+    interval_step = 1
+    batch_size = 64
     embeddings_normalization = True
+    audio_normalization = True
 
-
-class FingerprintAudioConfig():
-    embeddings_out_dir = 'data/music_caps/audio_embeddings'
-    sampling_rate = 16000
-    base_audio_audio_path = 'data/music_caps/audios'
-    dataset_path = 'data/music_caps/audios.dataset'
-    interval_duration_in_seconds = 5
-    interval_step = 2.5
-    batch_size = 12
-    embeddings_normalization = True
-
+    model_name = "UniSpeechSatForXVector"
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76'
 
 class FingerprintIndexAudios():
-    embeddings_out_dir = 'data/rutube/audio_embeddings'
+    embeddings_out_dir = 'data/rutube/audio_index_embeddings'
     sampling_rate = 16000
-    base_audio_audio_path = 'data/compressed_index_audios/'
-    dataset_path = 'data/rutube/audios.dataset'
+    base_audio_audio_path = 'data/rutube/compressed_index_audios/'
+    dataset_path = 'data/rutube/compressed_index_audios.dataset'
+    few_dataset_samples = None
+
     interval_duration_in_seconds = 5
-    interval_step = 2.5
-    batch_size = 12
+    interval_step = 1
+    batch_size = 64
     embeddings_normalization = True
+    audio_normalization = True
+
+    model_name = "UniSpeechSatForXVector"
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76'
 
 
 @dataclass
@@ -58,15 +58,6 @@ class FingerprintConfig():
     model_name: str
     model_from_pretrained: Optional[str]
 
-
-class FingerprintValAudios():
-    embeddings_out_dir = 'data/rutube/audio_val_embeddings'
-    sampling_rate = 16000
-    base_audio_audio_path = 'data/compressed_val_audios/'
-    dataset_path = 'data/rutube/audios_val.dataset'
-    interval_duration_in_seconds = 5
-    interval_step = 2.5
-    batch_size = 32
 
 
 # требования к датасету:
@@ -151,11 +142,9 @@ def generate_fingerprints(config: FingerprintConfig):
                 if embeddings_normalization:
                     embeddings = torch.nn.functional.normalize(embeddings, dim=-1)
                 embeddings = embeddings.cpu()
-                # print("embeddings", embeddings.shape)
                 all_embeddings.append(embeddings)
 
             all_embeddings = torch.cat(all_embeddings, dim=0)
-            # print("all_embeddings", all_embeddings.shape)
 
             file_name = embeddings_out_dir + '/' + item['file_name'].split('.')[0] + '.pt'
             torch.save(all_embeddings, file_name)
@@ -163,9 +152,8 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    # config = FingerprintAugmentedAudioConfig()
-    config = FingerprintAudioConfig()
-    # config = FingerprintIndexAudios()
-
+    config = FingerprintIndexAudios()
     generate_fingerprints(config)
 
+    config = FingerprintValAudios()
+    generate_fingerprints(config)

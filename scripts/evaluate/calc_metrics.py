@@ -5,6 +5,10 @@ from qdrant_client import QdrantClient, models
 from datasets import Dataset
 from dataclasses import dataclass, field
 
+import numpy as np
+from sklearn.metrics import roc_auc_score
+
+from avm.search.audio import AudioIndex
 
 @dataclass
 class EvaluationConfig:
@@ -14,109 +18,104 @@ class EvaluationConfig:
     sampling_rate: int
     # matched_threshold: float
 
-    distance_metric: models.Distance = field(default=models.Distance.EUCLID)
-    base_embeddings_path: str = field(default='data/music_caps/audio_embeddings')
-    base_augmented_embeddings_path: str = field(default='data/music_caps/augmented_embeddings')
-    qdrant_collection_name: str = field(default="audio_embeddings")
+    index_embeddings_path: str = field(default='data/music_caps/audio_embeddings')
+    query_embeddings_path: str = field(default='data/music_caps/augmented_embeddings')
+    queries_dataset: str = field(default='data/music_caps/augmented_audios.dataset') # датасет с разметкой, на каком моменте начались реальные данные
+
     metrics_log_path: str = field(default='data/music_caps/metrics')
-    augmented_dataset_path: str = field(default="data/music_caps/augmented_audios.dataset")
 
     verbose: bool = field(default=False)
 
 
+# вычисляет метрику хорошести эмбэддингов
+def evaluate_metrics(config: EvaluationConfig, metrics_df):
+    df = metrics_df
+
+    uniq_youtube_ids = sorted(df['youtube_id'].unique())
+
+    youtube_id_to_index = { ytid: i for i, ytid in enumerate(uniq_youtube_ids) }
+
+    # print("uniq_youtube_ids", len(uniq_youtube_ids))
+
+    interval_start_offset = df['interval_i'] * (config.interval_step * config.sampling_rate)
+    full_interval_dutation_samples = config.sampling_rate * config.full_interval_duration_in_seconds
+    ending_padding_samples = config.interval_duration_in_seconds * config.sampling_rate
+    df['interval_should_match'] = (df['augmented_audio_offset'] <  interval_start_offset) & (interval_start_offset < df['augmented_audio_offset'] + full_interval_dutation_samples - ending_padding_samples)
+
+    matched_predictions = df # df[df['interval_should_match']]
+    # print("matched_predictions", len(matched_predictions))
+
+    num_hits = (matched_predictions['hit_i'].max() + 1)
+    interval_seconds = len(df) // num_hits // len(uniq_youtube_ids)
+
+    num_samples = len(uniq_youtube_ids) * interval_seconds
+    
+    index_no_class = len(uniq_youtube_ids)
+
+    score_table = np.zeros([ num_samples, len(uniq_youtube_ids) + 1 ])
+    target_score_table = np.zeros([ num_samples ])
+    for i, (_, row) in enumerate(matched_predictions.iterrows()):
+        sample_i = i // num_hits
+        row_youtube_id = row['youtube_id']
+        
+        youtube_id_index = youtube_id_to_index[row_youtube_id]
+
+        if row['hit_i'] == 0:
+            if row['interval_should_match']:
+                target_score_table[sample_i] = youtube_id_index
+            else:
+                target_score_table[sample_i] = index_no_class
+
+        hit_youtube_id = row['hit_youtube_id']
+        hit_youtube_id_index = youtube_id_to_index[hit_youtube_id]
+
+        score_table[sample_i, hit_youtube_id_index] += row['hit_score']
+
+    normalized_score_table = score_table / (score_table.sum(axis=1, keepdims=True) + 1e-9)
+
+    rocauc_score = roc_auc_score(target_score_table, normalized_score_table, multi_class='ovr')
+
+    return {
+        "rocauc_score": rocauc_score
+    }
+
 
 def evaluate_matching(config: EvaluationConfig):
-    base_embeddings_path = config.base_embeddings_path
-    base_augmented_embeddings_path = config.base_augmented_embeddings_path
-    qdrant_collection_name = config.qdrant_collection_name
+
+    audio_index = AudioIndex(config.index_embeddings_path)
+
     metrics_log_path = config.metrics_log_path
-    augmented_dataset_path = config.augmented_dataset_path
-
-    augmented_dataset = Dataset.load_from_disk(augmented_dataset_path)
-
     os.makedirs(metrics_log_path, exist_ok=True)
 
-    embeddings_files = sorted(os.listdir(base_embeddings_path))
-    augmented_embeddings_files = sorted(os.listdir(base_augmented_embeddings_path))
-
-    embeddings_by_youtube_id = {}
-    index_points = []
-
-    idx_point_i = 0
-    for file_name in embeddings_files:
-        embedding = torch.load(base_embeddings_path + '/' + file_name)
-        youtube_id = file_name.removesuffix('.pt')
-
-        for interval_num in range(embedding.shape[0]):
-            index_point = models.PointStruct(
-                id=idx_point_i,
-                vector=embedding[interval_num],
-                payload={"youtube_id": youtube_id, "interval_num": interval_num},
-            )
-            idx_point_i += 1
-            index_points.append(index_point)
-
-        embeddings_by_youtube_id[youtube_id] = embedding
-
-    embedding_size = embedding.shape[1]
-
-    qdrant = QdrantClient(":memory:")
-    # Create collection to store books
-    qdrant.create_collection(
-        collection_name=qdrant_collection_name,
-        vectors_config=models.VectorParams(
-            size=embedding_size,
-            distance=config.distance_metric,
-        )
-    )
-
-    qdrant.upload_points(
-        collection_name=qdrant_collection_name,
-        points=index_points,
-    )
+    query_embeddings_path = config.query_embeddings_path
+    query_embeddings_files = set(sorted(os.listdir(query_embeddings_path)))
+    queries_dataset = Dataset.load_from_disk(config.queries_dataset)
 
     metrics_log = []
-    most_clothest_counts = 0
-    total_intervals = 0
-    no_embeddings_for_files = 0
-    for augmented_item in augmented_dataset:
-        file_name = augmented_item['file_name'].replace('.wav', '.pt')
-        if file_name not in augmented_embeddings_files:
-            no_embeddings_for_files += 1
-            # print(f"no embedding for {file_name}")
+    file_not_found = set()
+
+    for query_item in queries_dataset:
+        file_name = query_item['file_name']
+        file_name = file_name.replace('.wav', '.pt')
+        if file_name not in query_embeddings_files:
+            file_not_found.add(file_name)
             continue
 
-        embedding = torch.load(base_augmented_embeddings_path + '/' + file_name)
+        query_embedding = torch.load(os.path.join(query_embeddings_path, file_name))
 
-        file_parts = file_name.removesuffix('.pt').split("_")
-        augmentation_name = file_parts[-1]
-        youtube_id = "_".join(file_parts[:-1])
+        augmentation_name = query_item['augmentation']
+        youtube_id = query_item['youtube_id']
 
-        for interval_i in range(embedding.shape[0]):
+        for interval_i in range(query_embedding.shape[0]):
 
-            hits = qdrant.search(
-                collection_name=qdrant_collection_name,
-                query_vector=embedding[interval_i].numpy(),
-                limit=10,
+            hits = audio_index.search(
+                query_vector=query_embedding[interval_i].numpy(),
+                limit=10
             )
-            total_intervals += 1
 
             for i, hit in enumerate(hits):
                 hit_youtube_id = hit.payload['youtube_id']
                 hit_interval_i = hit.payload['interval_num']
-
-                # оффсет кол-ва сэмплов для начала интервала
-                interval_start_offset = interval_i * config.interval_step * config.sampling_rate
-                # длительность полного интервала
-                full_interval_dutation_samples = config.sampling_rate * config.full_interval_duration_in_seconds
-
-                # Попадает ли заданный интервал в реальный отрезок полного фрагмента?
-                interval_matches_true_injection = augmented_item['augmented_audio_offset'] <  interval_start_offset < augmented_item['augmented_audio_offset'] + full_interval_dutation_samples
-
-                # Должен ли текуший интервал быть задетекчен матчингом (с учетом длительности интервала)
-                interval_should_match = augmented_item['augmented_audio_offset'] <  interval_start_offset < augmented_item['augmented_audio_offset'] + full_interval_dutation_samples - ((config.interval_duration_in_seconds - config.interval_step) * config.sampling_rate)
-                if i == 0 and youtube_id == hit_youtube_id and interval_should_match:
-                    most_clothest_counts += 1
 
                 metrics_log.append({
                     "hit_i": i,
@@ -127,39 +126,34 @@ def evaluate_matching(config: EvaluationConfig):
                     "file_name": file_name,
                     "augmentation": augmentation_name,
                     "interval_i": interval_i,
-                    "interval_matches_true_injection": interval_matches_true_injection,
-                    "interval_should_match": interval_should_match,
-                    "augmented_audio_offset": augmented_item['augmented_audio_offset'],
+                    "augmented_audio_offset": query_item['augmented_audio_offset'],
                 })
 
-    if config.verbose:
-        print("no_embeddings_for_files", no_embeddings_for_files)
-        print("augmented_embeddings_files", len(augmented_embeddings_files))
-        print("found clothest:", len(metrics_log))
 
     metrics_dataset = Dataset.from_list(metrics_log)
     metrics_dataset.save_to_disk(metrics_log_path + "/metrics.dataset")
     metrics_dataframe = metrics_dataset.to_pandas()
 
-    count_expected_to_match_interval = metrics_dataframe['interval_should_match'].sum()
+    metrics_values = evaluate_metrics(config, metrics_dataframe)
     if config.verbose:
-        print("the most nearest accuracy", round(most_clothest_counts / count_expected_to_match_interval, 2))
-        print(metrics_dataframe['augmentation'].value_counts())
+        print("metrics_values", metrics_values)
 
-    metrics_log_df_filtered = metrics_dataframe[metrics_dataframe['interval_matches_true_injection']]
-    metrics_log_df_filtered_first_hit = metrics_log_df_filtered[metrics_log_df_filtered['hit_i'] == 0]
-    metrics_log_df_filtered_first_hit_match = metrics_log_df_filtered_first_hit[metrics_log_df_filtered_first_hit['hit_youtube_id'] == metrics_log_df_filtered_first_hit['youtube_id']]
+    if len(file_not_found) > 0:
+        print("not found embedding files for queries:", len(file_not_found))
 
-    matched_videos_found_intervals = metrics_log_df_filtered_first_hit_match['youtube_id'].value_counts()
-    if config.verbose:
-        print("matched_videos", len(matched_videos_found_intervals))
-        print("matched_videos_found_intervals", matched_videos_found_intervals)
-        print(f"found_intervals_distribution (at most {config.full_interval_duration_in_seconds / config.interval_step})", matched_videos_found_intervals.value_counts())
-
-    return {
-        "accuracy": round(most_clothest_counts / count_expected_to_match_interval, 2),
-    }
+    return metrics_values
 
 if __name__ == '__main__':
-    config = EvaluationConfig()
-    evaluate_matching(config)
+    eval_config = EvaluationConfig(
+        index_embeddings_path='./data/music_caps/pipeline/1718135254/index_embeddings',
+        query_embeddings_path='./data/music_caps/pipeline/1718135254/validation_embeddings',
+        metrics_log_path='./data/music_caps/pipeline/1718135254/metrics',
+        sampling_rate=16000,
+        full_interval_duration_in_seconds=10,
+        interval_duration_in_seconds=5,
+        interval_step=1,
+        # matched_threshold=pipeline_config.matched_threshold
+        verbose=True
+    )
+    evaluate_matching(eval_config)
+    

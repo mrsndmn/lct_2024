@@ -27,7 +27,7 @@ class PipelineConfig:
     audio_normalization: bool = field(default=True)
 
     model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/')
+    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76/')
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
@@ -39,10 +39,6 @@ class PipelineConfig:
     index_audios: str = field(default= 'data/music_caps/audios')
     index_dataset: str = field(default= 'data/music_caps/audios.dataset')
     few_index_samples: int = field(default= 10)
-
-    # evaluation config
-    augmented_dataset_path: str = field(default='data/music_caps/augmented_audios.dataset')
-    distance_metric: models.Distance = field(default=models.Distance.COSINE)
 
     verbose: bool = field(default=False)
 
@@ -95,15 +91,13 @@ def run_pipeline(pipeline_config: PipelineConfig):
 
     metrics_path = os.path.join(pipeline_config.pipeline_dir, "metrics")
     eval_config = EvaluationConfig(
-        base_embeddings_path=str(index_embeddings_directory),
-        base_augmented_embeddings_path=str(validation_embeddings_directory),
+        index_embeddings_path=str(index_embeddings_directory),
+        query_embeddings_path=str(validation_embeddings_directory),
         metrics_log_path=str(metrics_path),
-        augmented_dataset_path=pipeline_config.augmented_dataset_path,
         sampling_rate=pipeline_config.sampling_rate,
         full_interval_duration_in_seconds=pipeline_config.full_interval_duration_in_seconds,
         interval_duration_in_seconds=pipeline_config.interval_duration_in_seconds,
         interval_step=pipeline_config.interval_step,
-        distance_metric=pipeline_config.distance_metric,
         # matched_threshold=pipeline_config.matched_threshold
         verbose=pipeline_config.verbose
     )

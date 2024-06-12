@@ -247,7 +247,6 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
 
                     # Validation Data Config
                     validation_audios = 'data/music_caps/augmented_audios',
-                    validation_dataset = 'data/music_caps/augmented_audios.dataset',
                     few_validation_samples = 10,
 
                     # Index Data Config
@@ -256,7 +255,6 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                     few_index_samples = 10,
 
                     # evaluation config
-                    augmented_dataset_path = 'data/music_caps/augmented_audios.dataset',
                     distance_metric = models.Distance.COSINE,
             )
             metrics = run_pipeline(pipeline_config)
