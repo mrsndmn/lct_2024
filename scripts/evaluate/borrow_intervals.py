@@ -3,21 +3,21 @@ from dataclasses import dataclass, field
 import torch
 from copy import deepcopy
 from avm.search.audio import AudioIndex
-from qdrant_client import types
+# from qdrant_client.conversions import common_types as types
 from avm.fingerprint.audio import Segment
 # [
 #   (Segment(cur_file), Segment(target_file) )
 # ]
 
 @dataclass
-class IntervalsConfig():
-    interval_duration_in_seconds = 5
-    interval_step = 1,
-    sampling_rate = 16000
+class IntervalsConfig:
+    interval_duration_in_seconds:int = field(default=5)
+    interval_step:int = field(default=1)
+    sampling_rate:int = field(default=16000)
 
-    merge_segments_with_diff_seconds = 3
-    segment_min_duration = 6
-    threshold = 0.9
+    merge_segments_with_diff_seconds:int = field(default=3)
+    segment_min_duration:int = field(default=6)
+    threshold: float = field(default=0.9)
 
 
 def parse_segment(segment):
@@ -55,17 +55,17 @@ def final_metric(tp, fp, fn, final_iou):
     
     return 2 * (final_iou * f) / (final_iou + f + 1e-6)
 
-def evaluate_iou(query_matched_segments: List[List[List[Segment]]], target_segments: List[List[Segment]]):
+def evaluate_iou(query_matched_segments: List[List[Segment]], target_segment: List[Segment]):
     
     max_iou = 0.0
-    # for segments_q, segment_t in zip(query_matched_segments, target_segments):
-    #     current_iou = iou(segment_q=segment_q[0], segment_t=segment_t[0]) * iou(segment_q=segment_q[1], segment_t=segment_t[1])
-    #     max_iou = max(max_iou, current_iou)
+    for segment_q in query_matched_segments:
+        current_iou = iou(segment_q=segment_q[0], segment_t=target_segment[0]) * iou(segment_q=segment_q[1], segment_t=target_segment[1])
+        max_iou = max(max_iou, current_iou)
 
     return max_iou
 
 
-def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]]):
+def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]], current_file_duration=None):
     # todo в теории нужный интервал может быть не самым ближайшим соседом
     first_only_hits = [ h[0] for h in query_hits_intervals ]
 
@@ -79,19 +79,27 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
         query_segment = Segment(
             file_id=query_file_id,
             start_second=query_start_segment,
-            end_second=query_start_segment + config.interval_duration_in_seconds
+            end_second=(query_start_segment + config.interval_duration_in_seconds),
         )
 
         hit_file_id = query_hit.payload['file_id']
         hit_interval = query_hit.payload['interval_num']
         hit_start_segment = hit_interval * config.interval_step
+
+        hit_end_segment = hit_start_segment + config.interval_duration_in_seconds
+        if current_file_duration is not None:
+            hit_end_segment = min(hit_end_segment, current_file_duration)
+        
         hit_segment = Segment(
             file_id=hit_file_id,
             start_second=hit_start_segment,
-            end_second=hit_start_segment + config.interval_duration_in_seconds,
+            end_second=hit_end_segment,
         )
 
         result_segments.append([query_segment, hit_segment])
+
+    if len(result_segments) == 0:
+        return []
 
     # если сегменты одного видео близко друг к другу, то можно их смерджить
     current_segment: List[Segment] = deepcopy(result_segments[0])

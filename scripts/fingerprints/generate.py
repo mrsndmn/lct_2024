@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 
 class FingerprintValAudios():
-    embeddings_out_dir = 'data/rutube/embeddings/TODO/audio_val_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/clean-vortex-89/audio_val_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_val_audios/'
     dataset_path = 'data/rutube/compressed_val_audios.dataset'
@@ -22,10 +22,10 @@ class FingerprintValAudios():
     audio_normalization = True
 
     model_name = "UniSpeechSatForXVector"
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76'
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89'
 
 class FingerprintIndexAudios():
-    embeddings_out_dir = 'data/rutube/embeddings/TODO/audio_index_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/clean-vortex-89/audio_index_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_index_audios/'
     dataset_path = 'data/rutube/compressed_index_audios.dataset'
@@ -38,7 +38,7 @@ class FingerprintIndexAudios():
     audio_normalization = True
 
     model_name = "UniSpeechSatForXVector"
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76'
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89'
 
 
 @dataclass
@@ -155,5 +155,5 @@ if __name__ == '__main__':
     config = FingerprintIndexAudios()
     generate_fingerprints(config)
 
-    config = FingerprintValAudios()
-    generate_fingerprints(config)
+    # config = FingerprintValAudios()
+    # generate_fingerprints(config)

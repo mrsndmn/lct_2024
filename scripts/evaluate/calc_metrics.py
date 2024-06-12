@@ -11,7 +11,7 @@ from sklearn.metrics import roc_auc_score
 from avm.search.audio import AudioIndex
 from avm.fingerprint.audio import Segment
 
-from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsConfig
+from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsConfig, evaluate_iou
 
 @dataclass
 class EvaluationConfig:
@@ -98,8 +98,8 @@ def evaluate_matching(config: EvaluationConfig):
     metrics_log = []
     file_not_found = set()
 
-    matched_segments = []
-    target_segments = []
+    ious_metric = []
+    false_positive_count = 0
 
     for query_item in queries_dataset:
         file_name = query_item['file_name']
@@ -114,19 +114,32 @@ def evaluate_matching(config: EvaluationConfig):
         file_id = query_item[config.file_id_field_name]
 
         start_of_target_segment = int(query_item['augmented_audio_offset'] / 16000)
-        target_segments.append([
+        target_segment = [
             Segment(file_id=file_id, start_second=start_of_target_segment, end_second=start_of_target_segment + 10),
             Segment(file_id=file_id, start_second=0, end_second=10),
-        ])
+        ]
         
         query_hits = audio_index.search_sequential(
             query_vectors=query_embedding.numpy(),
             limit_per_vector=10
         )
 
-        intervals_config = IntervalsConfig()
-        query_matched_segments = get_matched_segments(intervals_config, file_id, query_hits)
-        matched_segments.append(query_matched_segments)
+        intervals_config = IntervalsConfig(
+            threshold=0.8
+        )
+        query_matched_segments = get_matched_segments(intervals_config, file_id, query_hits, current_file_duration=15)
+
+        valid_file_id_segments = []
+        for matched_segment_pair in query_matched_segments:
+            if matched_segment_pair[1].file_id != file_id:
+                false_positive_count += 1
+                print("found false positive:", matched_segment_pair)
+                continue
+            else:
+                valid_file_id_segments.append(matched_segment_pair)
+
+        current_iou = evaluate_iou(valid_file_id_segments, target_segment)
+        ious_metric.append(current_iou)
 
         for interval_i in range(len(query_hits)):
 
@@ -154,8 +167,7 @@ def evaluate_matching(config: EvaluationConfig):
     metrics_dataset.save_to_disk(metrics_full_path)
     metrics_dataframe = metrics_dataset.to_pandas()
 
-    print("query_matched_segments", len(query_matched_segments))
-    evaluate_iou(query_matched_segments, target_segments)
+    result_iou = sum(ious_metric) / (len(ious_metric) + false_positive_count)
 
     metrics_values = evaluate_metrics(config, metrics_dataframe)
     if config.verbose:
@@ -165,7 +177,11 @@ def evaluate_matching(config: EvaluationConfig):
     if len(file_not_found) > 0:
         print("not found embedding files for queries:", len(file_not_found))
 
-    return metrics_values
+    return {
+        "mean_clean_iou": np.mean(ious_metric),
+        "result_iou": result_iou,
+        **metrics_values,
+    }
 
 if __name__ == '__main__':
     eval_config = EvaluationConfig(

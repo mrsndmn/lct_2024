@@ -27,7 +27,7 @@ class PipelineConfig:
     audio_normalization: bool = field(default=True)
 
     model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/fast-night-88/')
+    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89/')
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
@@ -101,7 +101,10 @@ def run_pipeline(pipeline_config: PipelineConfig):
         # matched_threshold=pipeline_config.matched_threshold
         verbose=pipeline_config.verbose
     )
-    return evaluate_matching(eval_config)
+    eval_metrics = evaluate_matching(eval_config)
+    print("eval_metrics", eval_metrics)
+
+    return eval_metrics
 
 if __name__ == '__main__':
 
