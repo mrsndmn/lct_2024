@@ -110,7 +110,7 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
             if next_segment[1].file_id == current_segment[1].file_id:
                 if next_segment[1].end_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
                     current_segment[0].end_second = next_segment[0].end_second
-                    current_segment[1].end_second = next_segment[0].end_second
+                    current_segment[1].end_second = next_segment[1].end_second
         else:
             merged_segments.append(next_segment)
             current_segment = next_segment
@@ -126,18 +126,19 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
 
 if __name__ == '__main__':
     audio_index = AudioIndex(
-        index_embeddings_dir='data/rutube/embeddings/legendary-microwave-76/audio_index_embeddings/',
-        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        index_embeddings_dir='data/rutube/embeddings/clean-vortex-89/audio_index_embeddings/',
+        # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
     )
 
-    query_embeddings = torch.load('data/rutube/embeddings/legendary-microwave-76/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
+    query_embeddings = torch.load('data/rutube/embeddings/clean-vortex-89/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
 
     print("query_embeddings", query_embeddings.shape)
 
-    print(audio_index.search_sequential(query_embeddings.numpy()))
+    query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
 
-    query_hits_intervals = audio_index.search_sequential(query_embeddings, limit_per_vector=1)
-
+    intervals_config = IntervalsConfig()
+    matched_intervals = get_matched_segments(intervals_config, "ydcrodwtz3mstjq1vhbdflx6kyhj3y0p", query_hits_intervals)
+    print('len(matched_intervals)', len(matched_intervals))
 
     raise Exception
 

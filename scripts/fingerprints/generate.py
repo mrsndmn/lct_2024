@@ -82,6 +82,7 @@ def generate_fingerprints(config: FingerprintConfig):
     existing_audio_files = set(os.listdir(base_audio_audio_path))
 
     audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
+    # audios_dataset = audios_dataset.filter(lambda x: x['file_name'] == 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav')
     audios_dataset = audios_dataset.map(lambda x: {"audio": base_audio_audio_path + '/' + x['file_name']})
     audios_dataset = audios_dataset.cast_column('audio', Audio(sampling_rate=sampling_rate))
 
@@ -152,8 +153,10 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    config = FingerprintIndexAudios()
-    generate_fingerprints(config)
+    # config = FingerprintIndexAudios()
+    # generate_fingerprints(config)
 
     # config = FingerprintValAudios()
     # generate_fingerprints(config)
+
+    pass
