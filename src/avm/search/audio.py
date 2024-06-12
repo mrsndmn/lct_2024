@@ -21,13 +21,13 @@ class AudioIndex():
         idx_point_i = 0
         for file_name in embeddings_files:
             embedding = torch.load(os.path.join(index_embeddings_dir, file_name))
-            youtube_id = file_name.removesuffix('.pt')
+            file_id = file_name.removesuffix('.pt')
 
             for interval_num in range(embedding.shape[0]):
                 index_point = models.PointStruct(
                     id=idx_point_i,
                     vector=embedding[interval_num],
-                    payload={"youtube_id": youtube_id, "interval_num": interval_num},
+                    payload={"file_id": file_id, "interval_num": interval_num},
                 )
                 idx_point_i += 1
                 index_points.append(index_point)

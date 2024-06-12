@@ -43,16 +43,16 @@ def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
 @dataclass
 class TrainingConfig():
     model_name = 'UniSpeechSatForXVector'
-    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76/'
+    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/fast-night-88/' # файнтюн на данных рутуба
 
     # Head Training
+    freeze_skeleton = False
+    batch_size = 10
+    learning_rate = 1e-5
+
     # freeze_skeleton = True
     # batch_size = 50
-    # learning_rate = 1e-3
-
-    freeze_skeleton = True
-    batch_size = 50
-    learning_rate = 3e-4
+    # learning_rate = 3e-4
 
     model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
     save_and_evaluate_model_every_epoch = 1

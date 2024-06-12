@@ -43,17 +43,17 @@ def download_clip(
 
 def process(example):
 
-    outfile_path = str(data_dir + '/' + f"{example['youtube_id']}_tmp.wav")
-    processed_outfile_path = str(data_dir + '/' + f"{example['youtube_id']}.wav")
+    outfile_path = str(data_dir + '/' + f"{example['file_id']}_tmp.wav")
+    processed_outfile_path = str(data_dir + '/' + f"{example['file_id']}.wav")
 
     try:
         download_clip(
-            example['youtube_id'],
+            example['file_id'],
             outfile_path,
         )
 
         if not os.path.exists(outfile_path):
-            raise Exception(f"file was not downloaded {example['youtube_id']}")
+            raise Exception(f"file was not downloaded {example['file_id']}")
 
         start_time = example['start_time']
         end_time = start_time + 10
@@ -76,7 +76,7 @@ def process(example):
         torchaudio.save(processed_outfile_path, waveform, sample_rate)
 
     except Exception as e:
-        print("error processing sample ", example['youtube_id'], e)
+        print("error processing sample ", example['file_id'], e)
 
     try:
         os.remove(outfile_path)
@@ -88,8 +88,8 @@ def process(example):
 
 
 music_caps = datasets.load_dataset("google/MusicCaps", split='train')
-music_caps = music_caps.rename_columns({ 'ytid': 'youtube_id',  'start_s': 'start_time' })
-music_caps = music_caps.map(lambda x: { "file_name": x['youtube_id'] + '.wav' })
+music_caps = music_caps.rename_columns({ 'ytid': 'file_id',  'start_s': 'start_time' })
+music_caps = music_caps.map(lambda x: { "file_name": x['file_id'] + '.wav' })
 music_caps.save_to_disk('./data/music_caps/audios.dataset')
 
 data_dir = './data/music_caps/audios'

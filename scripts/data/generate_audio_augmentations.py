@@ -181,12 +181,12 @@ if __name__ == '__main__':
             waveform, sample_rate = torchaudio.load(str(base_path.joinpath(file_name)))
             return waveform, sample_rate
 
-        youtube_id = file_name.split('.')[0]
+        file_id = file_name.split('.')[0]
 
         augmentation = audio_augmentator.get_random_augmentation()
         augmentation_name = augmentation['name']
         augmentation_function = augmentation['function']
-        augmented_file_name = youtube_id + "_" + augmentation_name + ".wav"
+        augmented_file_name = file_id + "_" + augmentation_name + ".wav"
 
         # if augmented_file_name not in augmented_audios:
         waveform, sample_rate = get_waveform()
@@ -203,7 +203,7 @@ if __name__ == '__main__':
         torchaudio.save(str(file_path_with_prefix), background_waveform, sample_rate=sample_rate)
 
         dataset_item = {
-            "youtube_id": youtube_id,
+            "file_id": file_id,
             "file_name": augmented_file_name,
             "augmentation": augmentation_name,
             "augmented_audio_offset": augmented_audio_offset,

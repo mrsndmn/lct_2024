@@ -31,11 +31,11 @@ class EvaluationConfig:
 def evaluate_metrics(config: EvaluationConfig, metrics_df):
     df = metrics_df
 
-    uniq_youtube_ids = sorted(df['youtube_id'].unique())
+    uniq_file_ids = sorted(df['file_id'].unique())
 
-    youtube_id_to_index = { ytid: i for i, ytid in enumerate(uniq_youtube_ids) }
+    file_id_to_index = { ytid: i for i, ytid in enumerate(uniq_file_ids) }
 
-    # print("uniq_youtube_ids", len(uniq_youtube_ids))
+    # print("uniq_file_ids", len(uniq_file_ids))
 
     interval_start_offset = df['interval_i'] * (config.interval_step * config.sampling_rate)
     full_interval_dutation_samples = config.sampling_rate * config.full_interval_duration_in_seconds
@@ -46,30 +46,30 @@ def evaluate_metrics(config: EvaluationConfig, metrics_df):
     # print("matched_predictions", len(matched_predictions))
 
     num_hits = (matched_predictions['hit_i'].max() + 1)
-    interval_seconds = len(df) // num_hits // len(uniq_youtube_ids)
+    interval_seconds = len(df) // num_hits // len(uniq_file_ids)
 
-    num_samples = len(uniq_youtube_ids) * interval_seconds
+    num_samples = len(uniq_file_ids) * interval_seconds
     
-    index_no_class = len(uniq_youtube_ids)
+    index_no_class = len(uniq_file_ids)
 
-    score_table = np.zeros([ num_samples, len(uniq_youtube_ids) + 1 ])
+    score_table = np.zeros([ num_samples, len(uniq_file_ids) + 1 ])
     target_score_table = np.zeros([ num_samples ])
     for i, (_, row) in enumerate(matched_predictions.iterrows()):
         sample_i = i // num_hits
-        row_youtube_id = row['youtube_id']
+        row_file_id = row['file_id']
         
-        youtube_id_index = youtube_id_to_index[row_youtube_id]
+        file_id_index = file_id_to_index[row_file_id]
 
         if row['hit_i'] == 0:
             if row['interval_should_match']:
-                target_score_table[sample_i] = youtube_id_index
+                target_score_table[sample_i] = file_id_index
             else:
                 target_score_table[sample_i] = index_no_class
 
-        hit_youtube_id = row['hit_youtube_id']
-        hit_youtube_id_index = youtube_id_to_index[hit_youtube_id]
+        hit_file_id = row['hit_file_id']
+        hit_file_id_index = file_id_to_index[hit_file_id]
 
-        score_table[sample_i, hit_youtube_id_index] += row['hit_score']
+        score_table[sample_i, hit_file_id_index] += row['hit_score']
 
     normalized_score_table = score_table / (score_table.sum(axis=1, keepdims=True) + 1e-9)
 
@@ -104,7 +104,7 @@ def evaluate_matching(config: EvaluationConfig):
         query_embedding = torch.load(os.path.join(query_embeddings_path, file_name))
 
         augmentation_name = query_item['augmentation']
-        youtube_id = query_item['youtube_id']
+        file_id = query_item['file_id']
         
         query_hits = audio_index.search_sequential(
             query_vectors=query_embedding.numpy(),
@@ -116,15 +116,15 @@ def evaluate_matching(config: EvaluationConfig):
             hits = query_hits[interval_i]
 
             for i, hit in enumerate(hits):
-                hit_youtube_id = hit.payload['youtube_id']
+                hit_file_id = hit.payload['file_id']
                 hit_interval_i = hit.payload['interval_num']
 
                 metrics_log.append({
                     "hit_i": i,
                     "hit_score": hit.score,
-                    "hit_youtube_id": hit_youtube_id,
+                    "hit_file_id": hit_file_id,
                     "hit_interval_i": hit_interval_i,
-                    "youtube_id": youtube_id,
+                    "file_id": file_id,
                     "file_name": file_name,
                     "augmentation": augmentation_name,
                     "interval_i": interval_i,
