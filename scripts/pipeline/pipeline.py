@@ -27,7 +27,7 @@ class PipelineConfig:
     audio_normalization: bool = field(default=True)
 
     model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76/')
+    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/fast-night-88/')
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
@@ -40,7 +40,7 @@ class PipelineConfig:
     index_dataset: str = field(default= 'data/music_caps/audios.dataset')
     few_index_samples: int = field(default= 10)
 
-    verbose: bool = field(default=False)
+    verbose: bool = field(default=True)
 
 
 def run_pipeline(pipeline_config: PipelineConfig):

@@ -9,6 +9,9 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 
 from avm.search.audio import AudioIndex
+from avm.fingerprint.audio import Segment
+
+from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsConfig
 
 @dataclass
 class EvaluationConfig:
@@ -21,10 +24,11 @@ class EvaluationConfig:
     index_embeddings_path: str = field(default='data/music_caps/audio_embeddings')
     query_embeddings_path: str = field(default='data/music_caps/augmented_embeddings')
     queries_dataset: str = field(default='data/music_caps/augmented_audios.dataset') # датасет с разметкой, на каком моменте начались реальные данные
+    file_id_field_name: str = field(default="youtube_id")
 
     metrics_log_path: str = field(default='data/music_caps/metrics')
 
-    verbose: bool = field(default=False)
+    verbose: bool = field(default=True)
 
 
 # вычисляет метрику хорошести эмбэддингов
@@ -94,6 +98,9 @@ def evaluate_matching(config: EvaluationConfig):
     metrics_log = []
     file_not_found = set()
 
+    matched_segments = []
+    target_segments = []
+
     for query_item in queries_dataset:
         file_name = query_item['file_name']
         file_name = file_name.replace('.wav', '.pt')
@@ -104,12 +111,22 @@ def evaluate_matching(config: EvaluationConfig):
         query_embedding = torch.load(os.path.join(query_embeddings_path, file_name))
 
         augmentation_name = query_item['augmentation']
-        file_id = query_item['file_id']
+        file_id = query_item[config.file_id_field_name]
+
+        start_of_target_segment = int(query_item['augmented_audio_offset'] / 16000)
+        target_segments.append([
+            Segment(file_id=file_id, start_second=start_of_target_segment, end_second=start_of_target_segment + 10),
+            Segment(file_id=file_id, start_second=0, end_second=10),
+        ])
         
         query_hits = audio_index.search_sequential(
             query_vectors=query_embedding.numpy(),
             limit_per_vector=10
         )
+
+        intervals_config = IntervalsConfig()
+        query_matched_segments = get_matched_segments(intervals_config, file_id, query_hits)
+        matched_segments.append(query_matched_segments)
 
         for interval_i in range(len(query_hits)):
 
@@ -131,14 +148,19 @@ def evaluate_matching(config: EvaluationConfig):
                     "augmented_audio_offset": query_item['augmented_audio_offset'],
                 })
 
-
     metrics_dataset = Dataset.from_list(metrics_log)
-    metrics_dataset.save_to_disk(metrics_log_path + "/metrics.dataset")
+
+    metrics_full_path = os.path.join(metrics_log_path, "metrics.dataset")
+    metrics_dataset.save_to_disk(metrics_full_path)
     metrics_dataframe = metrics_dataset.to_pandas()
+
+    print("query_matched_segments", len(query_matched_segments))
+    evaluate_iou(query_matched_segments, target_segments)
 
     metrics_values = evaluate_metrics(config, metrics_dataframe)
     if config.verbose:
         print("metrics_values", metrics_values)
+        print("metrics_full_path", metrics_full_path)
 
     if len(file_not_found) > 0:
         print("not found embedding files for queries:", len(file_not_found))

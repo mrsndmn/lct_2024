@@ -1,6 +1,7 @@
 import os
-
+from typing import List
 from qdrant_client import QdrantClient, models
+from qdrant_client.conversions import common_types as types
 import torch
 import numpy as np
 
@@ -8,13 +9,17 @@ class AudioIndex():
 
     def __init__(self,
                  index_embeddings_dir,
+                 index_embeddings_files=None,
                  collection_name='audio_index',
                  distance_metric=models.Distance.COSINE,
                 ):
         
         self.collection_name = collection_name
 
-        embeddings_files = sorted(os.listdir(index_embeddings_dir))
+        if index_embeddings_files is not None:
+            embeddings_files = index_embeddings_files
+        else:
+            embeddings_files = sorted(os.listdir(index_embeddings_dir))
 
         index_points = []
 
@@ -51,14 +56,14 @@ class AudioIndex():
 
         return
 
-    def search(self, query_vector: np.ndarray, limit=10):
+    def search(self, query_vector: np.ndarray, limit=10) -> List[types.ScoredPoint]:
         return self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
-            limit=10,
+            limit=limit,
         )
 
-    def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=10):
+    def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=10) -> List[List[types.ScoredPoint]]:
 
         query_hits = []
         for i in range(len(query_vectors)):

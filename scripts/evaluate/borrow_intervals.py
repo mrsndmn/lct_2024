@@ -1,13 +1,135 @@
+from typing import List
+from dataclasses import dataclass, field
 import torch
+from copy import deepcopy
 from avm.search.audio import AudioIndex
+from qdrant_client import types
+from avm.fingerprint.audio import Segment
+# [
+#   (Segment(cur_file), Segment(target_file) )
+# ]
 
-def 
+@dataclass
+class IntervalsConfig():
+    interval_duration_in_seconds = 5
+    interval_step = 1,
+    sampling_rate = 16000
+
+    merge_segments_with_diff_seconds = 3
+    segment_min_duration = 6
+    threshold = 0.9
+
+
+def parse_segment(segment):
+    start, end = map(int, segment.split("-"))
+    return start, end
+
+
+def iou(segment_q: Segment, segment_t: Segment):
+    start_q, stop_q = segment_q.start_second, segment_q.end_second
+    start_t, stop_t = segment_t.start_second, segment_t.end_second
+    
+    intersection_start = max(start_q, start_t)
+    intersection_end = min(stop_q, stop_t)
+
+    intersection_length = max(0, intersection_end - intersection_start)
+    union_length = (stop_q - start_q) + (stop_t - start_t) - intersection_length
+
+    iou = intersection_length / union_length if union_length > 0 else 0
+    return iou
+
+
+def f1(tp, fp, fn):
+    precision = tp / (tp + fp + 1e-6)
+    recall = tp / (tp + fn + 1e-6)
+    
+    print(f'Precision = {precision}')
+    print(f'Recall = {recall}')
+    
+    return 2 * (precision * recall) / (precision + recall + 1e-6)
+
+def final_metric(tp, fp, fn, final_iou):
+    f = f1(tp, fp, fn)
+    
+    print(f'IOU = {final_iou}')
+    
+    return 2 * (final_iou * f) / (final_iou + f + 1e-6)
+
+def evaluate_iou(query_matched_segments: List[List[List[Segment]]], target_segments: List[List[Segment]]):
+    
+    max_iou = 0.0
+    # for segments_q, segment_t in zip(query_matched_segments, target_segments):
+    #     current_iou = iou(segment_q=segment_q[0], segment_t=segment_t[0]) * iou(segment_q=segment_q[1], segment_t=segment_t[1])
+    #     max_iou = max(max_iou, current_iou)
+
+    return max_iou
+
+
+def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]]):
+    # todo в теории нужный интервал может быть не самым ближайшим соседом
+    first_only_hits = [ h[0] for h in query_hits_intervals ]
+
+    result_segments: List[List[Segment]] = []
+
+    for i, query_hit in enumerate(first_only_hits):
+        if query_hit.score < config.threshold:
+            continue
+
+        query_start_segment = config.interval_step * i
+        query_segment = Segment(
+            file_id=query_file_id,
+            start_second=query_start_segment,
+            end_second=query_start_segment + config.interval_duration_in_seconds
+        )
+
+        hit_file_id = query_hit.payload['file_id']
+        hit_interval = query_hit.payload['interval_num']
+        hit_start_segment = hit_interval * config.interval_step
+        hit_segment = Segment(
+            file_id=hit_file_id,
+            start_second=hit_start_segment,
+            end_second=hit_start_segment + config.interval_duration_in_seconds,
+        )
+
+        result_segments.append([query_segment, hit_segment])
+
+    # если сегменты одного видео близко друг к другу, то можно их смерджить
+    current_segment: List[Segment] = deepcopy(result_segments[0])
+    merged_segments = [ current_segment ]
+    for next_segment in result_segments[1:]:
+        next_segment: List[Segment]
+        if next_segment[0].end_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
+            if next_segment[1].file_id == current_segment[1].file_id:
+                if next_segment[1].end_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
+                    current_segment[0].end_second = next_segment[0].end_second
+                    current_segment[1].end_second = next_segment[0].end_second
+        else:
+            merged_segments.append(next_segment)
+            current_segment = next_segment
+
+    # если нашли одинокий интервал, то его можно отфильтровать, тк минимум 10 секунд должно матчиться
+    filtered_segments = []
+    for segment in merged_segments:
+        if segment[0].end_second - segment[0].start_second < config.segment_min_duration:
+            continue
+        filtered_segments.append(segment)
+
+    return filtered_segments
 
 if __name__ == '__main__':
-    audio_index = AudioIndex(index_embeddings_dir='data/rutube/audio_index_embeddings')
+    audio_index = AudioIndex(
+        index_embeddings_dir='data/rutube/embeddings/legendary-microwave-76/audio_index_embeddings/',
+        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+    )
 
-    query_embedding = torch.load('data/rutube/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
+    query_embeddings = torch.load('data/rutube/embeddings/legendary-microwave-76/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
 
-    print("query_embedding", query_embedding.shape)
+    print("query_embeddings", query_embeddings.shape)
 
+    print(audio_index.search_sequential(query_embeddings.numpy()))
+
+    query_hits_intervals = audio_index.search_sequential(query_embeddings, limit_per_vector=1)
+
+
+    raise Exception
 
