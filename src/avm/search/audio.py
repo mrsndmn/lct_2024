@@ -2,6 +2,7 @@ import os
 
 from qdrant_client import QdrantClient, models
 import torch
+import numpy as np
 
 class AudioIndex():
 
@@ -50,9 +51,20 @@ class AudioIndex():
 
         return
 
-    def search(self, query_vector, limit=10):
+    def search(self, query_vector: np.ndarray, limit=10):
         return self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
             limit=10,
         )
+
+    def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=10):
+
+        query_hits = []
+        for i in range(len(query_vectors)):
+            query_vector = query_vectors[i]
+
+            hits = self.search(query_vector, limit=limit_per_vector)
+            query_hits.append(hits)
+
+        return query_hits

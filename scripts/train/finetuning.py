@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import soundfile as sf
 
 import torch
 import torch.nn as nn
@@ -42,7 +43,7 @@ def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
 @dataclass
 class TrainingConfig():
     model_name = 'UniSpeechSatForXVector'
-    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/vivid-bush-37/'
+    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76/'
 
     # Head Training
     # freeze_skeleton = True
@@ -54,13 +55,14 @@ class TrainingConfig():
     learning_rate = 3e-4
 
     model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
-    save_and_evaluate_model_every_epoch = 5
+    save_and_evaluate_model_every_epoch = 1
 
     num_epochs = 30
+    multiply_train_epoch_data = 50
 
-    training_dataset_path = 'data/music_caps/audios.dataset'
-    audio_base_path = 'data/music_caps/audios'
-    few_dataset_samples = 1000
+    training_dataset_path = 'data/rutube/compressed_index_audios.dataset'
+    audio_base_path = 'data/rutube/compressed_index_audios/'
+    few_dataset_samples = None
 
     normalize_audio = True
     interval_duration_in_seconds = 5
@@ -95,8 +97,8 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
 
     training_dataset = training_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
     training_dataset = training_dataset.map(lambda x: {"audio": config.audio_base_path + '/' + x['file_name']})
-    training_dataset = training_dataset.cast_column('audio', Audio(sampling_rate=config.sampling_rate))
-    training_dataset = training_dataset.filter(lambda x: x['audio']['array'].shape[-1] >= config.sampling_rate * config.interval_duration_in_seconds)
+    # training_dataset = training_dataset.cast_column('audio', Audio(sampling_rate=config.sampling_rate))
+    # training_dataset = training_dataset.filter(lambda x: x['audio']['array'].shape[-1] >= config.sampling_rate * config.interval_duration_in_seconds)
     training_dataset = training_dataset.remove_columns([x for x in training_dataset.column_names if x != 'audio'])
 
     if config.few_dataset_samples is not None:
@@ -111,13 +113,30 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
 
     default_data_collator = DefaultDataCollator()
     def collate_fn(samples):
-        total_expected_frames = config.sampling_rate * config.interval_duration_in_seconds
 
+        def read_random_audio_section(filename, total_expected_frames):
+            track = sf.SoundFile(filename)
+
+            can_seek = track.seekable() # True
+            if not can_seek:
+                raise ValueError("Not compatible with seeking")
+            
+            file_frames = track.frames
+            start_frame = random.randint(0, file_frames - total_expected_frames)
+
+            sr = track.samplerate
+            assert sr == config.sampling_rate, f"{sr} == {config.sampling_rate}"
+
+            track.seek(start_frame)
+            audio_section = track.read(total_expected_frames)
+            return audio_section
+
+        total_expected_frames = config.sampling_rate * config.interval_duration_in_seconds
         processed_samples = []
         for sample in samples:
-            rand_subsequence = random_subsequence(sample['audio']['array'], total_expected_frames)
+            rand_subsequence = read_random_audio_section(sample['audio'], total_expected_frames)
             processed_samples.append({
-                "audio_waveform": rand_subsequence
+                "audio_waveform": torch.from_numpy(rand_subsequence)
             })
 
         return default_data_collator(processed_samples)
@@ -129,6 +148,7 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
         shuffle=True,
         drop_last=True,
         collate_fn=collate_fn,
+        num_workers=2,
     )
 
     # Model and optimizer
@@ -144,87 +164,88 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     print("trainable model params", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     for epoch_i in range(config.num_epochs):
-        pbar = tqdm(training_dataloader)
-        for batch in pbar:
-            with torch.no_grad():
-                audio_waveforms = batch['audio_waveform'].to(torch.float32)
+        for dataloader_multiplicator in range(config.multiply_train_epoch_data):
+            pbar = tqdm(training_dataloader)
+            for batch in pbar:
+                with torch.no_grad():
+                    audio_waveforms = batch['audio_waveform'].to(torch.float32)
 
-                # print(audio_waveforms.shape)
-                augmented_audio_waveforms = []
-                # augmented_audio_waveforms_1 = torch.empty_like(audio_waveforms)
-                # augmented_audio_waveforms_2 = torch.empty_like(audio_waveforms)
-                for i in range(audio_waveforms.shape[0]):
-                    # augmented_audio_waveforms_1[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
-                    augmented_audio_waveforms_1 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
-                    if config.normalize_audio:
-                        augmented_audio_waveforms_1 = min_max_normalize(augmented_audio_waveforms_1)
-                    augmented_audio_waveforms.append(augmented_audio_waveforms_1[0].cpu().numpy())
+                    # print(audio_waveforms.shape)
+                    augmented_audio_waveforms = []
+                    # augmented_audio_waveforms_1 = torch.empty_like(audio_waveforms)
+                    # augmented_audio_waveforms_2 = torch.empty_like(audio_waveforms)
+                    for i in range(audio_waveforms.shape[0]):
+                        # augmented_audio_waveforms_1[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
+                        augmented_audio_waveforms_1 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
+                        if config.normalize_audio:
+                            augmented_audio_waveforms_1 = min_max_normalize(augmented_audio_waveforms_1)
+                        augmented_audio_waveforms.append(augmented_audio_waveforms_1[0].cpu().numpy())
 
-                for i in range(audio_waveforms.shape[0]):
-                    # augmented_audio_waveforms_2[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
-                    augmented_audio_waveforms_2 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
-                    if config.normalize_audio:
-                        augmented_audio_waveforms_2 = min_max_normalize(augmented_audio_waveforms_2)
-                    augmented_audio_waveforms.append(augmented_audio_waveforms_2[0].cpu().numpy())
+                    for i in range(audio_waveforms.shape[0]):
+                        # augmented_audio_waveforms_2[i, :, :] = audio_augmentator.apply_random_augmentation(audio_waveforms[i, :, :])
+                        augmented_audio_waveforms_2 = audio_augmentator.apply_random_augmentation(audio_waveforms[i:i+1, :])
+                        if config.normalize_audio:
+                            augmented_audio_waveforms_2 = min_max_normalize(augmented_audio_waveforms_2)
+                        augmented_audio_waveforms.append(augmented_audio_waveforms_2[0].cpu().numpy())
 
 
-                # print("augmented_audio_waveforms_1", augmented_audio_waveforms_1.shape)
-                # print("augmented_audio_waveforms_2", augmented_audio_waveforms_2.shape)
+                    # print("augmented_audio_waveforms_1", augmented_audio_waveforms_1.shape)
+                    # print("augmented_audio_waveforms_2", augmented_audio_waveforms_2.shape)
 
-            # augmented_audio_waveforms = torch.cat([augmented_audio_waveforms_1, augmented_audio_waveforms_2], dim=0)
+                # augmented_audio_waveforms = torch.cat([augmented_audio_waveforms_1, augmented_audio_waveforms_2], dim=0)
 
-            model_inputs = feature_extractor(
-                augmented_audio_waveforms,
-                return_tensors="pt",
-                sampling_rate=config.sampling_rate
-            )
-            # print("model_inputs", model_inputs)
-            model_output = model(
-                input_values=model_inputs['input_values'].to(device)
-            )
-            model_output = model_output.embeddings
+                model_inputs = feature_extractor(
+                    augmented_audio_waveforms,
+                    return_tensors="pt",
+                    sampling_rate=config.sampling_rate
+                )
+                # print("model_inputs", model_inputs)
+                model_output = model(
+                    input_values=model_inputs['input_values'].to(device)
+                )
+                model_output = model_output.embeddings
 
-            model_output = model_output / (model_output.norm(dim=-1, keepdim=True) + 1e-6)
-            if model_output.isnan().any().item():
-                raise Exception("model_output is nan!")
+                model_output = model_output / (model_output.norm(dim=-1, keepdim=True) + 1e-6)
+                if model_output.isnan().any().item():
+                    raise Exception("model_output is nan!")
 
-            # print("model_output", model_output.shape, "min", model_output.min(), "max", model_output.max())
-            x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2, dim=0)
-            # print("model_inputs['input_values']", model_inputs['input_values'].shape)
-            # print("x_vectors_1.shape", x_vectors_1.shape)
-            # print("x_vectors_2.shape", x_vectors_2.shape)
+                # print("model_output", model_output.shape, "min", model_output.min(), "max", model_output.max())
+                x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2, dim=0)
+                # print("model_inputs['input_values']", model_inputs['input_values'].shape)
+                # print("x_vectors_1.shape", x_vectors_1.shape)
+                # print("x_vectors_2.shape", x_vectors_2.shape)
 
-            # todo logit scale like in clip?
-            # print("model.logit_scale", model.logit_scale.min().item(), model.logit_scale.max().item())
-            logit_scale = model.logit_scale.exp()
-            if logit_scale.isnan().item():
-                raise Exception("logit_scale is nan!")
+                # todo logit scale like in clip?
+                # print("model.logit_scale", model.logit_scale.min().item(), model.logit_scale.max().item())
+                logit_scale = model.logit_scale.exp()
+                if logit_scale.isnan().item():
+                    raise Exception("logit_scale is nan!")
 
-            logits_per_1 = torch.matmul(x_vectors_1, x_vectors_2.t()) * logit_scale
-            if logits_per_1.isnan().any().item():
-                raise Exception("logits_per_1 is nan!")
+                logits_per_1 = torch.matmul(x_vectors_1, x_vectors_2.t()) * logit_scale
+                if logits_per_1.isnan().any().item():
+                    raise Exception("logits_per_1 is nan!")
 
-            # print("logits_per_1", logits_per_1.shape, "min", logits_per_1.min().item(), "max", logits_per_1.max().item())
+                # print("logits_per_1", logits_per_1.shape, "min", logits_per_1.min().item(), "max", logits_per_1.max().item())
 
-            loss = clip_loss(logits_per_1)
-            pbar.set_description(f"Epoch={epoch_i}; Loss={loss.item():.3f}")
+                loss = clip_loss(logits_per_1)
+                pbar.set_description(f"Epoch={epoch_i}({dataloader_multiplicator}); Loss={loss.item():.3f}")
 
-            model.zero_grad()
-            loss.backward()
-            if loss.isnan().item():
-                raise Exception("loss is nan!")
-            
-            metric_logger.log({
-                "loss": loss.item(),
-                "debug/logit_scale": model.logit_scale.item(),
-                "debug/logit_scale_grad": model.logit_scale.grad.item(),
-                "debug/feature_extractor.weight.grad.norm": model.feature_extractor.weight.grad.norm(2),
-                "debug/feature_extractor.bias.grad.norm": model.feature_extractor.bias.grad.norm(2),
-            })
-            # print("weight.grad.norm", model.feature_extractor.weight.grad.norm(2))
-            # print("bias.grad.norm", model.feature_extractor.bias.grad.norm(2))
+                model.zero_grad()
+                loss.backward()
+                if loss.isnan().item():
+                    raise Exception("loss is nan!")
+                
+                metric_logger.log({
+                    "loss": loss.item(),
+                    "debug/logit_scale": model.logit_scale.item(),
+                    "debug/logit_scale_grad": model.logit_scale.grad.item(),
+                    "debug/feature_extractor.weight.grad.norm": model.feature_extractor.weight.grad.norm(2),
+                    "debug/feature_extractor.bias.grad.norm": model.feature_extractor.bias.grad.norm(2),
+                })
+                # print("weight.grad.norm", model.feature_extractor.weight.grad.norm(2))
+                # print("bias.grad.norm", model.feature_extractor.bias.grad.norm(2))
 
-            optimizer.step()
+                optimizer.step()
 
         if epoch_i != 0 and epoch_i % config.save_and_evaluate_model_every_epoch == 0:
             model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
@@ -253,9 +274,6 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                     index_audios = 'data/music_caps/audios',
                     index_dataset = 'data/music_caps/audios.dataset',
                     few_index_samples = 10,
-
-                    # evaluation config
-                    distance_metric = models.Distance.COSINE,
             )
             metrics = run_pipeline(pipeline_config)
             print("metrics", metrics)

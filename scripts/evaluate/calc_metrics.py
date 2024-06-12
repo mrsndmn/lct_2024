@@ -105,13 +105,15 @@ def evaluate_matching(config: EvaluationConfig):
 
         augmentation_name = query_item['augmentation']
         youtube_id = query_item['youtube_id']
+        
+        query_hits = audio_index.search_sequential(
+            query_vectors=query_embedding.numpy(),
+            limit_per_vector=10
+        )
 
-        for interval_i in range(query_embedding.shape[0]):
+        for interval_i in range(len(query_hits)):
 
-            hits = audio_index.search(
-                query_vector=query_embedding[interval_i].numpy(),
-                limit=10
-            )
+            hits = query_hits[interval_i]
 
             for i, hit in enumerate(hits):
                 hit_youtube_id = hit.payload['youtube_id']

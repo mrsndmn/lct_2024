@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 
 class FingerprintValAudios():
-    embeddings_out_dir = 'data/rutube/audio_val_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/TODO/audio_val_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_val_audios/'
     dataset_path = 'data/rutube/compressed_val_audios.dataset'
@@ -25,7 +25,7 @@ class FingerprintValAudios():
     model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/legendary-microwave-76'
 
 class FingerprintIndexAudios():
-    embeddings_out_dir = 'data/rutube/audio_index_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/TODO/audio_index_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_index_audios/'
     dataset_path = 'data/rutube/compressed_index_audios.dataset'
