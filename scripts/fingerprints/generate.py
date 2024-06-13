@@ -16,7 +16,7 @@ class FingerprintValAudios():
     few_dataset_samples = None
 
     interval_duration_in_seconds = 5
-    interval_step = 1
+    interval_step = 0.1
     batch_size = 64
     embeddings_normalization = True
     audio_normalization = True
@@ -82,7 +82,7 @@ def generate_fingerprints(config: FingerprintConfig):
     existing_audio_files = set(os.listdir(base_audio_audio_path))
 
     audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
-    # audios_dataset = audios_dataset.filter(lambda x: x['file_name'] == 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav')
+    audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in ['ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav', 'ded3d179001b3f679a0101be95405d2c.wav'])
     audios_dataset = audios_dataset.map(lambda x: {"audio": base_audio_audio_path + '/' + x['file_name']})
     audios_dataset = audios_dataset.cast_column('audio', Audio(sampling_rate=sampling_rate))
 
@@ -99,6 +99,7 @@ def generate_fingerprints(config: FingerprintConfig):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # print("device", device)
     model.to(device)
+    model.eval()
 
 
     # audio file is decoded on the fly
@@ -135,28 +136,42 @@ def generate_fingerprints(config: FingerprintConfig):
 
         with torch.no_grad():
             all_embeddings = []
-            for i in range(0, inputs_shifted.shape[0], batch_size):
+            for i in tqdm(range(0, inputs_shifted.shape[0], batch_size)):
 
                 max_index = min(i+batch_size, inputs_shifted.shape[-1])
                 embeddings = model(input_values=inputs_shifted[i:max_index].to(device)).embeddings
 
                 if embeddings_normalization:
-                    embeddings = torch.nn.functional.normalize(embeddings, dim=-1)
+                    embeddings = embeddings / (embeddings.norm(dim=-1, keepdim=True) + 1e-6)
                 embeddings = embeddings.cpu()
                 all_embeddings.append(embeddings)
 
             all_embeddings = torch.cat(all_embeddings, dim=0)
 
-            file_name = embeddings_out_dir + '/' + item['file_name'].split('.')[0] + '.pt'
+            file_name = os.path.join(embeddings_out_dir, item['file_name'].split('.')[0] + '.pt')
             torch.save(all_embeddings, file_name)
 
 
 if __name__ == '__main__':
 
-    # config = FingerprintIndexAudios()
-    # generate_fingerprints(config)
+    index_config = FingerprintIndexAudios()
+    generate_fingerprints(index_config)
 
-    # config = FingerprintValAudios()
-    # generate_fingerprints(config)
+    val_config = FingerprintValAudios()
+    generate_fingerprints(val_config)
 
-    pass
+    index_embeddings = torch.load( os.path.join(index_config.embeddings_out_dir, 'ded3d179001b3f679a0101be95405d2c.pt') )
+    index_embeddings = index_embeddings[546:692]
+
+    val_embeddings = torch.load( os.path.join(val_config.embeddings_out_dir, 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt') )
+    val_embeddings = val_embeddings[1539:1685]
+
+    assert index_embeddings.shape == val_embeddings.shape
+
+    scores = []
+    for i in range(val_embeddings.shape[0]):
+        scores.append(val_embeddings[i] @ index_embeddings[i])
+
+    print("mean scores", torch.tensor(scores).mean())
+
+    raise Exception

@@ -43,18 +43,19 @@ def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
 @dataclass
 class TrainingConfig():
     model_name = 'UniSpeechSatForXVector'
-    from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/fast-night-88/' # файнтюн на данных рутуба
+    # from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/fast-night-88/' # файнтюн на данных рутуба
+    from_pretrained = None
 
     # Head Training
     freeze_skeleton = False
     batch_size = 10
-    learning_rate = 1e-5
+    learning_rate = 1e-4
 
     # freeze_skeleton = True
     # batch_size = 50
     # learning_rate = 3e-4
 
-    model_checkpoints_path = 'data/models/UniSpeechSatForXVector_finetuned'
+    model_checkpoints_path = 'data/models/UniSpeechSatForXVector_mini_finetuned'
     save_and_evaluate_model_every_epoch = 1
 
     num_epochs = 30
@@ -164,6 +165,8 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     print("trainable model params", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     for epoch_i in range(config.num_epochs):
+        model.train()
+
         for dataloader_multiplicator in range(config.multiply_train_epoch_data):
             pbar = tqdm(training_dataloader)
             for batch in pbar:
