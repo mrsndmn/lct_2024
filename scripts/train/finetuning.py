@@ -50,6 +50,7 @@ class TrainingConfig():
     freeze_skeleton = False
     batch_size = 10
     learning_rate = 1e-4
+    interval_step = 0.1
 
     # freeze_skeleton = True
     # batch_size = 50
@@ -59,7 +60,7 @@ class TrainingConfig():
     save_and_evaluate_model_every_epoch = 1
 
     num_epochs = 30
-    multiply_train_epoch_data = 50
+    multiply_train_epoch_data = 10
 
     training_dataset_path = 'data/rutube/compressed_index_audios.dataset'
     audio_base_path = 'data/rutube/compressed_index_audios/'
@@ -245,12 +246,10 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                     "debug/feature_extractor.weight.grad.norm": model.feature_extractor.weight.grad.norm(2),
                     "debug/feature_extractor.bias.grad.norm": model.feature_extractor.bias.grad.norm(2),
                 })
-                # print("weight.grad.norm", model.feature_extractor.weight.grad.norm(2))
-                # print("bias.grad.norm", model.feature_extractor.bias.grad.norm(2))
 
                 optimizer.step()
 
-        if epoch_i != 0 and epoch_i % config.save_and_evaluate_model_every_epoch == 0:
+        if epoch_i % config.save_and_evaluate_model_every_epoch == 0:
             model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
             model.save_pretrained(model_checkpoint_path)
 
@@ -258,7 +257,7 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
                     pipeline_dir = 'data/music_caps/pipeline',
                     sampling_rate = 16000,
                     # Intervals Config
-                    interval_step = 1,
+                    interval_step = config.interval_step,
                     interval_duration_in_seconds = config.interval_duration_in_seconds,
                     full_interval_duration_in_seconds = 10,  # максимальная длинна заимствованного интервала для валидации
                     # common data config
@@ -282,8 +281,9 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
             print("metrics", metrics)
             metric_logger.log(metrics)
 
-    model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
-    model.save_pretrained(model_checkpoint_path)
+            model_checkpoint_path = os.path.join(config.model_checkpoints_path, metric_logger.name)
+            print("save model to", model_checkpoint_path)
+            model.save_pretrained(model_checkpoint_path)
 
     return
 

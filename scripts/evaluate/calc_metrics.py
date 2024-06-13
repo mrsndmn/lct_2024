@@ -15,11 +15,13 @@ from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsCon
 
 @dataclass
 class EvaluationConfig:
-    interval_step: int
-    interval_duration_in_seconds: int
-    full_interval_duration_in_seconds: int
+    interval_step: float
+    interval_duration_in_seconds: float
+    full_interval_duration_in_seconds: float
     sampling_rate: int
-    # matched_threshold: float
+    max_validation_file_duration = 10
+
+    threshold: float
 
     index_embeddings_path: str = field(default='data/music_caps/audio_embeddings')
     query_embeddings_path: str = field(default='data/music_caps/augmented_embeddings')
@@ -125,9 +127,12 @@ def evaluate_matching(config: EvaluationConfig):
         )
 
         intervals_config = IntervalsConfig(
-            threshold=0.8
+            threshold=config.threshold,
+            interval_step=config.interval_step,
+            interval_duration_in_seconds=config.interval_duration_in_seconds,
+
         )
-        query_matched_segments = get_matched_segments(intervals_config, file_id, query_hits, current_file_duration=15)
+        query_matched_segments = get_matched_segments(intervals_config, file_id, query_hits)
 
         valid_file_id_segments = []
         for matched_segment_pair in query_matched_segments:
@@ -136,6 +141,15 @@ def evaluate_matching(config: EvaluationConfig):
                 print("found false positive:", matched_segment_pair)
                 continue
             else:
+                query_segment: Segment = matched_segment_pair[0]
+                max_quey_end_second = query_embedding.shape[0] * config.interval_step
+                if query_segment.end_second > max_quey_end_second:
+                    query_segment.end_second = max_quey_end_second
+
+                indexed_segment = matched_segment_pair[1]
+                if indexed_segment.end_second > config.max_validation_file_duration:
+                    indexed_segment.end_second = config.max_validation_file_duration
+
                 valid_file_id_segments.append(matched_segment_pair)
 
         current_iou = evaluate_iou(valid_file_id_segments, target_segment)

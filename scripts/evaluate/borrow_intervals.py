@@ -11,12 +11,12 @@ from avm.fingerprint.audio import Segment
 
 @dataclass
 class IntervalsConfig:
-    interval_duration_in_seconds:int = field(default=5)
-    interval_step:int = field(default=1)
+    interval_duration_in_seconds:float = field(default=5.0)
+    interval_step:float = field(default=1.0)
     sampling_rate:int = field(default=16000)
 
     merge_segments_with_diff_seconds:int = field(default=3)
-    segment_min_duration:int = field(default=6)
+    segment_min_duration:int = field(default=7)
     threshold: float = field(default=0.9)
 
 
@@ -65,7 +65,7 @@ def evaluate_iou(query_matched_segments: List[List[Segment]], target_segment: Li
     return max_iou
 
 
-def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]], current_file_duration=None):
+def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]]):
     # todo в теории нужный интервал может быть не самым ближайшим соседом
     first_only_hits = [ h[0] for h in query_hits_intervals ]
 
@@ -87,8 +87,6 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
         hit_start_segment = hit_interval * config.interval_step
 
         hit_end_segment = hit_start_segment + config.interval_duration_in_seconds
-        if current_file_duration is not None:
-            hit_end_segment = min(hit_end_segment, current_file_duration)
         
         hit_segment = Segment(
             file_id=hit_file_id,

@@ -16,18 +16,18 @@ class PipelineConfig:
     sampling_rate: int = field(default=16000)
 
     # Intervals Config
-    interval_step: int = field(default=1)
+    interval_step: int = field(default=0.1)
     interval_duration_in_seconds: int = field(default=5)
     full_interval_duration_in_seconds: int = field(default=10)  # максимальная длинна заимствованного интервала для валидации
 
-    # matched_threshold = 0.9
+    threshold = 0.95
 
     # common data config
     embeddings_normalization: bool = field(default=True)
     audio_normalization: bool = field(default=True)
 
     model_name: str = field(default='UniSpeechSatForXVector')  # UniSpeechSatForXVector, Wav2Vec2ForXVector, WavLMForXVector, Data2VecAudioForXVector
-    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89/')
+    model_from_pretrained: str = field(default='data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97')
     # model_name = 'Wav2Vec2ForXVector'
 
     # Validation Data Config
@@ -98,8 +98,8 @@ def run_pipeline(pipeline_config: PipelineConfig):
         full_interval_duration_in_seconds=pipeline_config.full_interval_duration_in_seconds,
         interval_duration_in_seconds=pipeline_config.interval_duration_in_seconds,
         interval_step=pipeline_config.interval_step,
-        # matched_threshold=pipeline_config.matched_threshold
-        verbose=pipeline_config.verbose
+        threshold=pipeline_config.threshold,
+        verbose=pipeline_config.verbose,
     )
     eval_metrics = evaluate_matching(eval_config)
     print("eval_metrics", eval_metrics)
@@ -110,3 +110,5 @@ if __name__ == '__main__':
 
     pipeline_config = PipelineConfig()
     run_pipeline(pipeline_config)
+
+    raise Exception()

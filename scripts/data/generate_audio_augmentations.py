@@ -24,7 +24,7 @@ import random
 
 
 class SilenceShift(torch.nn.Module):
-    def __init__(self, sample_rate, min_shift_ms=0, max_shift_ms=5000):
+    def __init__(self, sample_rate, min_shift_ms=0, max_shift_ms=1000):
         super().__init__()
         self.sample_rate = sample_rate
         self.min_shift_ms = min_shift_ms
@@ -46,7 +46,7 @@ class SilenceShift(torch.nn.Module):
 
 
 class RandomSilence(torch.nn.Module):
-    def __init__(self, sample_rate, silence_max_duration=5000):
+    def __init__(self, sample_rate, silence_max_duration=3000):
         super().__init__()
         self.sample_rate = sample_rate
         self.silence_max_duration = silence_max_duration

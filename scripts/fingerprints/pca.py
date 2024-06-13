@@ -21,12 +21,12 @@ if __name__ == '__main__':
 
     all_embeddings = []
     for file_name in embeddings_files:
-        embedding = torch.load(index_embeddings_path + '/' + file_name)
+        embedding = torch.load(os.path.join(index_embeddings_path, file_name))
         all_embeddings.append(embedding)
 
     all_augmented_embeddings = []
     for file_name in augmented_embeddings_files:
-        embedding = torch.load(query_embeddings_path + '/' + file_name)
+        embedding = torch.load(os.path.join(query_embeddings_path, file_name))
         all_augmented_embeddings.append(embedding)
 
     all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
