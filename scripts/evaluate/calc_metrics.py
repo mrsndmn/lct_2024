@@ -16,6 +16,7 @@ from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsCon
 @dataclass
 class EvaluationConfig:
     interval_step: float
+    query_interval_step: float
     interval_duration_in_seconds: float
     full_interval_duration_in_seconds: float
     sampling_rate: int
@@ -128,7 +129,8 @@ def evaluate_matching(config: EvaluationConfig):
 
         intervals_config = IntervalsConfig(
             threshold=config.threshold,
-            interval_step=config.interval_step,
+            index_interval_step=config.interval_step,
+            query_interval_step=config.query_interval_step,
             interval_duration_in_seconds=config.interval_duration_in_seconds,
 
         )
@@ -206,6 +208,7 @@ if __name__ == '__main__':
         full_interval_duration_in_seconds=10,
         interval_duration_in_seconds=5,
         interval_step=1,
+        query_interval_step=0.1,
         # matched_threshold=pipeline_config.matched_threshold
         verbose=True
     )

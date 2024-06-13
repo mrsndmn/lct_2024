@@ -12,7 +12,8 @@ from avm.fingerprint.audio import Segment
 @dataclass
 class IntervalsConfig:
     interval_duration_in_seconds:float = field(default=5.0)
-    interval_step:float = field(default=1.0)
+    query_interval_step:float = field(default=1.0)
+    index_interval_step:float = field(default=1.0)
     sampling_rate:int = field(default=16000)
 
     merge_segments_with_diff_seconds:int = field(default=3)
@@ -64,7 +65,6 @@ def evaluate_iou(query_matched_segments: List[List[Segment]], target_segment: Li
 
     return max_iou
 
-
 def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_intervals: List[List[Segment]]):
     # todo в теории нужный интервал может быть не самым ближайшим соседом
     first_only_hits = [ h[0] for h in query_hits_intervals ]
@@ -75,7 +75,7 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
         if query_hit.score < config.threshold:
             continue
 
-        query_start_segment = config.interval_step * i
+        query_start_segment = config.query_interval_step * i
         query_segment = Segment(
             file_id=query_file_id,
             start_second=query_start_segment,
@@ -84,7 +84,7 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
 
         hit_file_id = query_hit.payload['file_id']
         hit_interval = query_hit.payload['interval_num']
-        hit_start_segment = hit_interval * config.interval_step
+        hit_start_segment = hit_interval * config.index_interval_step
 
         hit_end_segment = hit_start_segment + config.interval_duration_in_seconds
         
@@ -104,14 +104,17 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
     merged_segments = [ current_segment ]
     for next_segment in result_segments[1:]:
         next_segment: List[Segment]
-        if next_segment[0].end_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
+        if next_segment[0].start_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
             if next_segment[1].file_id == current_segment[1].file_id:
-                if next_segment[1].end_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
+                if next_segment[1].start_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
                     current_segment[0].end_second = next_segment[0].end_second
                     current_segment[1].end_second = next_segment[1].end_second
-        else:
-            merged_segments.append(next_segment)
-            current_segment = next_segment
+                    print("merged", merged_segments)
+                    continue
+
+        merged_segments.append(next_segment)
+        print("appended", merged_segments)
+        current_segment = next_segment
 
     # если нашли одинокий интервал, то его можно отфильтровать, тк минимум 10 секунд должно матчиться
     filtered_segments = []
@@ -124,17 +127,22 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
 
 if __name__ == '__main__':
     audio_index = AudioIndex(
-        index_embeddings_dir='data/rutube/embeddings/clean-vortex-89/audio_index_embeddings/',
-        # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
+        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
     )
 
-    query_embeddings = torch.load('data/rutube/embeddings/clean-vortex-89/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
+    query_embeddings = torch.load('data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
 
     print("query_embeddings", query_embeddings.shape)
+    query_embeddings = query_embeddings[::10]
 
     query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
 
-    intervals_config = IntervalsConfig()
+    intervals_config = IntervalsConfig(
+        threshold=0.95,
+        query_interval_step=1.0,
+        interval_duration_in_seconds=5,
+    )
     matched_intervals = get_matched_segments(intervals_config, "ydcrodwtz3mstjq1vhbdflx6kyhj3y0p", query_hits_intervals)
     print('len(matched_intervals)', len(matched_intervals))
 

@@ -98,6 +98,7 @@ def run_pipeline(pipeline_config: PipelineConfig):
         full_interval_duration_in_seconds=pipeline_config.full_interval_duration_in_seconds,
         interval_duration_in_seconds=pipeline_config.interval_duration_in_seconds,
         interval_step=pipeline_config.interval_step,
+        query_interval_step=pipeline_config.interval_step,
         threshold=pipeline_config.threshold,
         verbose=pipeline_config.verbose,
     )

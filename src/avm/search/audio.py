@@ -1,3 +1,4 @@
+from tqdm.auto import tqdm
 import os
 from typing import List
 from qdrant_client import QdrantClient, models
@@ -66,7 +67,7 @@ class AudioIndex():
     def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=10) -> List[List[types.ScoredPoint]]:
 
         query_hits = []
-        for i in range(len(query_vectors)):
+        for i in tqdm(range(len(query_vectors))):
             query_vector = query_vectors[i]
 
             hits = self.search(query_vector, limit=limit_per_vector)

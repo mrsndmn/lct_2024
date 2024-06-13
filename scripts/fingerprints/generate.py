@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 
 
 class FingerprintValAudios():
-    embeddings_out_dir = 'data/rutube/embeddings/clean-vortex-89/audio_val_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_val_audios/'
     dataset_path = 'data/rutube/compressed_val_audios.dataset'
@@ -22,23 +22,23 @@ class FingerprintValAudios():
     audio_normalization = True
 
     model_name = "UniSpeechSatForXVector"
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89'
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97'
 
 class FingerprintIndexAudios():
-    embeddings_out_dir = 'data/rutube/embeddings/clean-vortex-89/audio_index_embeddings'
+    embeddings_out_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings'
     sampling_rate = 16000
     base_audio_audio_path = 'data/rutube/compressed_index_audios/'
     dataset_path = 'data/rutube/compressed_index_audios.dataset'
     few_dataset_samples = None
 
-    interval_duration_in_seconds = 5
-    interval_step = 1
+    interval_duration_in_seconds = 5.
+    interval_step = 1.0
     batch_size = 64
     embeddings_normalization = True
     audio_normalization = True
 
     model_name = "UniSpeechSatForXVector"
-    model_from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/clean-vortex-89'
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97'
 
 
 @dataclass
@@ -82,7 +82,7 @@ def generate_fingerprints(config: FingerprintConfig):
     existing_audio_files = set(os.listdir(base_audio_audio_path))
 
     audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
-    # audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in ['ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav', 'ded3d179001b3f679a0101be95405d2c.wav'])
+    audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in ['ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav', 'ded3d179001b3f679a0101be95405d2c.wav'])
     audios_dataset = audios_dataset.map(lambda x: {"audio": base_audio_audio_path + '/' + x['file_name']})
     audios_dataset = audios_dataset.cast_column('audio', Audio(sampling_rate=sampling_rate))
 
@@ -154,24 +154,10 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    index_config = FingerprintIndexAudios()
-    generate_fingerprints(index_config)
+    # index_config = FingerprintIndexAudios()
+    # generate_fingerprints(index_config)
 
     val_config = FingerprintValAudios()
     generate_fingerprints(val_config)
-
-    index_embeddings = torch.load( os.path.join(index_config.embeddings_out_dir, 'ded3d179001b3f679a0101be95405d2c.pt') )
-    index_embeddings = index_embeddings[546:692]
-
-    val_embeddings = torch.load( os.path.join(val_config.embeddings_out_dir, 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt') )
-    val_embeddings = val_embeddings[1539:1685]
-
-    assert index_embeddings.shape == val_embeddings.shape
-
-    scores = []
-    for i in range(val_embeddings.shape[0]):
-        scores.append(val_embeddings[i] @ index_embeddings[i])
-
-    print("mean scores", torch.tensor(scores).mean())
 
     raise Exception
