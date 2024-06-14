@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 
 from avm.search.audio import AudioIndex
-from avm.fingerprint.audio import Segment
+from avm.matcher import Segment
 
 from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsConfig, evaluate_iou
 

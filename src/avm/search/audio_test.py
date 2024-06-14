@@ -3,9 +3,17 @@ import timeit
 import torch
 from qdrant_client import QdrantClient, models
 
-@pytest.mark.parametrize("distance_metric", [ models.Distance.DOT, models.Distance.COSINE ])
-def test_qdrand_normalized_embeddings_diatance(distance_metric):
-    embedding_size = 256
+@pytest.mark.parametrize("distance_metric,embedding_size", [
+    (models.Distance.DOT, 64),
+    (models.Distance.DOT, 128),
+    (models.Distance.DOT, 256),
+    (models.Distance.DOT, 512),
+    (models.Distance.COSINE, 64),
+    (models.Distance.COSINE, 128),
+    (models.Distance.COSINE, 256),
+    (models.Distance.COSINE, 512),
+])
+def test_qdrand_normalized_embeddings_diatance(distance_metric, embedding_size):
     collection_name="test"
     index_points = []
 
