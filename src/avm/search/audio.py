@@ -60,14 +60,14 @@ class AudioIndex():
 
         return
 
-    def search(self, query_vector: np.ndarray, limit=10) -> List[types.ScoredPoint]:
+    def search(self, query_vector: np.ndarray, limit=1) -> List[types.ScoredPoint]:
         return self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
             limit=limit,
         )
 
-    def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=10) -> List[List[types.ScoredPoint]]:
+    def search_sequential(self, query_vectors: np.ndarray, limit_per_vector=1) -> List[List[types.ScoredPoint]]:
 
         query_hits = []
         for i in tqdm(range(len(query_vectors))):
