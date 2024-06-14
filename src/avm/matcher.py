@@ -201,13 +201,13 @@ def dummy_get_matched_intervals():
 
     pirate_interval1 = Segment(
         file_id="ugc",
-        start_sample=12300,
-        end_sample=45600,
+        start_second=12300,
+        end_second=45600,
     )
     pirate_interval2 = Segment(
         file_id="ugc",
-        start_sample=22000,
-        end_sample=33000,
+        start_second=22000,
+        end_second=33000,
     )
 
     return [
