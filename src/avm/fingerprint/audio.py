@@ -4,8 +4,11 @@ from dataclasses import dataclass, field
 @dataclass
 class Segment:
     file_id: str
-    start_second: int
-    end_second: int
+    start_second: float
+    end_second: float
+
+    def format_duration(self):
+        return f"{int(self.start_second)}-{int(self.end_second)}"
 
 def dummy_get_matched_intervals():
 

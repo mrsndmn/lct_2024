@@ -109,11 +109,11 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
                 if next_segment[1].start_second - current_segment[0].end_second < config.merge_segments_with_diff_seconds:
                     current_segment[0].end_second = next_segment[0].end_second
                     current_segment[1].end_second = next_segment[1].end_second
-                    print("merged", merged_segments)
+                    # print("merged", merged_segments)
                     continue
 
         merged_segments.append(next_segment)
-        print("appended", merged_segments)
+        # print("appended", merged_segments)
         current_segment = next_segment
 
     # если нашли одинокий интервал, то его можно отфильтровать, тк минимум 10 секунд должно матчиться
@@ -126,25 +126,57 @@ def get_matched_segments(config: IntervalsConfig, query_file_id, query_hits_inte
     return filtered_segments
 
 if __name__ == '__main__':
+
+    from tqdm import tqdm
+    import os
+    import pickle
+    import pandas as pd
+
     audio_index = AudioIndex(
         index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
-        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
     )
 
-    query_embeddings = torch.load('data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt')
+    query_embeddings_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings/'
+    query_embeddings_files = sorted(os.listdir(query_embeddings_dir))
+    
+    matched_intervals_for_queries = []
 
-    print("query_embeddings", query_embeddings.shape)
-    query_embeddings = query_embeddings[::10]
+    for query_embeddings_file in tqdm(query_embeddings_files[:2]):
+        query_embeddings_file: str
+        file_id = query_embeddings_file.removesuffix(".pt")
+        query_embeddings = torch.load(os.path.join(query_embeddings_dir, query_embeddings_file))
 
-    query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
+        query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
 
-    intervals_config = IntervalsConfig(
-        threshold=0.95,
-        query_interval_step=1.0,
-        interval_duration_in_seconds=5,
-    )
-    matched_intervals = get_matched_segments(intervals_config, "ydcrodwtz3mstjq1vhbdflx6kyhj3y0p", query_hits_intervals)
-    print('len(matched_intervals)', len(matched_intervals))
+        intervals_config = IntervalsConfig(
+            threshold=0.95,
+            index_interval_step=1.0,
+            query_interval_step=0.2,
+            interval_duration_in_seconds=5,
+        )
+        matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
+        matched_intervals_for_queries.append(matched_intervals)
+        print('len(matched_intervals)', len(matched_intervals))
+    
+    with open("matched_intervals_for_queries.pickle", 'wb') as f:
+        pickle.dump(matched_intervals, f)
+    
+    validate_file_items = []
+    for mi in matched_intervals:
+        piracy_interval: Segment = mi[0]
+        license_interval: Segment = mi[1]
+
+        validate_file_item = {
+            "ID-piracy": piracy_interval.file_id,
+            "SEG-piracy": piracy_interval.format_duration(),
+            "ID-license": license_interval.file_id,
+            "SEG-license": license_interval.format_duration(),
+        }
+        validate_file_items.append(validate_file_item)
+
+    df = pd.DataFrame(validate_file_items)
+    df.to_csv("matched_intervals_for_queries.csv")
 
     raise Exception
 

@@ -16,8 +16,8 @@ class FingerprintValAudios():
     few_dataset_samples = None
 
     interval_duration_in_seconds = 5
-    interval_step = 0.1
-    batch_size = 64
+    interval_step = 0.2
+    batch_size = 128
     embeddings_normalization = True
     audio_normalization = True
 
@@ -33,7 +33,7 @@ class FingerprintIndexAudios():
 
     interval_duration_in_seconds = 5.
     interval_step = 1.0
-    batch_size = 64
+    batch_size = 128
     embeddings_normalization = True
     audio_normalization = True
 
@@ -82,7 +82,7 @@ def generate_fingerprints(config: FingerprintConfig):
     existing_audio_files = set(os.listdir(base_audio_audio_path))
 
     audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
-    audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in ['ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav', 'ded3d179001b3f679a0101be95405d2c.wav'])
+    # audios_dataset = audios_dataset.filter(lambda x: x['file_name'] in ['ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.wav', 'ded3d179001b3f679a0101be95405d2c.wav'])
     audios_dataset = audios_dataset.map(lambda x: {"audio": base_audio_audio_path + '/' + x['file_name']})
     audios_dataset = audios_dataset.cast_column('audio', Audio(sampling_rate=sampling_rate))
 
@@ -154,8 +154,8 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    # index_config = FingerprintIndexAudios()
-    # generate_fingerprints(index_config)
+    index_config = FingerprintIndexAudios()
+    generate_fingerprints(index_config)
 
     val_config = FingerprintValAudios()
     generate_fingerprints(val_config)

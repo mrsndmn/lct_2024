@@ -12,7 +12,7 @@ class AudioIndex():
                  index_embeddings_dir,
                  index_embeddings_files=None,
                  collection_name='audio_index',
-                 distance_metric=models.Distance.COSINE,
+                 distance_metric=models.Distance.DOT,
                 ):
         
         self.collection_name = collection_name
@@ -23,6 +23,8 @@ class AudioIndex():
             embeddings_files = sorted(os.listdir(index_embeddings_dir))
 
         index_points = []
+
+        assert len(embeddings_files) > 0, "index cant be empty"
 
         idx_point_i = 0
         for file_name in embeddings_files:
@@ -38,6 +40,7 @@ class AudioIndex():
                 idx_point_i += 1
                 index_points.append(index_point)
 
+        print("idx_point_i", idx_point_i)
 
         self.qdrant = QdrantClient(":memory:")
 
