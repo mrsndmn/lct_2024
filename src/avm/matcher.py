@@ -77,7 +77,7 @@ class AVMatcher():
 
     def find_audio_only_matches(self, audio_file, file_id):
         
-        query_audio_embeddings: torch.Tensor = self.audio_fingerprinter.fingerprint(audio_file, file_id)
+        query_audio_embeddings: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file, file_id)
         
         query_hits = self.audio_index.search_sequential(query_audio_embeddings)
 
@@ -210,10 +210,13 @@ def dummy_get_matched_intervals():
         end_sample=33000,
     )
 
-    hits1 = [SearchHit(score=0.99, segment=legal_interval1), SearchHit(score=0.59, segment=legal_interval2)]
-    hits2 = [SearchHit(score=0.9, segment=legal_interval2), SearchHit(score=0.59, segment=legal_interval1)]
-
     return [
-        MatchedInterval(segment=pirate_interval1, hits=hits1),
-        MatchedInterval(segment=pirate_interval2, hits=hits2),
+        MatchedSegmentsPair(
+            current_segment=pirate_interval1,
+            licensed_segment=legal_interval1,
+        ),
+        MatchedSegmentsPair(
+            current_segment=pirate_interval2,
+            licensed_segment=legal_interval2,
+        ),
     ]
