@@ -1,11 +1,11 @@
 from typing import Optional
 from dataclasses import dataclass, field
 import torch
-import torch.nn.functional as F
 from datasets import Dataset, Audio
 from avm.models import get_model
 import os
 from tqdm.auto import tqdm
+from avm.fingerprint.audio import AudioFingerPrinter
 
 
 class FingerprintValAudios():
@@ -89,67 +89,21 @@ def generate_fingerprints(config: FingerprintConfig):
     if config.few_dataset_samples is not None:
         audios_dataset = audios_dataset.select(range(config.few_dataset_samples))
 
-    # print("dataset len", len(audios_dataset))
-    # print(audios_dataset[0])
-
     model, feature_extractor = get_model(config.model_name, from_pretrained=config.model_from_pretrained)
 
-    # print(sum(p.numel() for p in model.parameters()))
-    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # print("device", device)
     model.to(device)
     model.eval()
 
+    audio_fingerprinter = AudioFingerPrinter(config, model, feature_extractor)
 
     # audio file is decoded on the fly
     for item in tqdm(audios_dataset):
-
         item_audio = item['audio']['array']
+        all_embeddings = audio_fingerprinter.fingerprint(item_audio)
 
-        if audio_normalization:
-            item_audio = (item_audio - item_audio.min()) / (item_audio.max() - item_audio.min() + 1e-6) * 2.0 - 1.0
-
-        inputs = feature_extractor(
-            [item_audio], sampling_rate=sampling_rate, return_tensors="pt", padding=True
-        )
-
-        interval_num_samples = int(interval_duration_in_seconds * sampling_rate)
-        interval_step_num_samples = int(interval_step * sampling_rate)
-
-        input_values = inputs['input_values']
-        inputs_shifted = []
-        for i in range(0, input_values.shape[-1], interval_step_num_samples):
-            # inputs['input_values'].shape[-1]
-            interval_right_boarder = min(i+interval_num_samples, input_values.shape[-1])
-            current_interval = input_values[:, i:interval_right_boarder]
-            if current_interval.shape[-1] < interval_num_samples:
-                padding_size = interval_num_samples - current_interval.shape[-1]
-                # print(f"run padding for {padding_size}")
-                current_interval = F.pad(current_interval, [0, padding_size], 'constant', value=0)
-
-            # print("current_interval", current_interval.shape)
-            inputs_shifted.append(current_interval)
-
-        inputs_shifted = torch.cat(inputs_shifted, dim=0)
-        # print("inputs_shifted", inputs_shifted.shape, "input_values", input_values.shape)
-
-        with torch.no_grad():
-            all_embeddings = []
-            for i in tqdm(range(0, inputs_shifted.shape[0], batch_size)):
-
-                max_index = min(i+batch_size, inputs_shifted.shape[-1])
-                embeddings = model(input_values=inputs_shifted[i:max_index].to(device)).embeddings
-
-                if embeddings_normalization:
-                    embeddings = embeddings / (embeddings.norm(dim=-1, keepdim=True) + 1e-6)
-                embeddings = embeddings.cpu()
-                all_embeddings.append(embeddings)
-
-            all_embeddings = torch.cat(all_embeddings, dim=0)
-
-            file_name = os.path.join(embeddings_out_dir, item['file_name'].split('.')[0] + '.pt')
-            torch.save(all_embeddings, file_name)
+        file_name = os.path.join(embeddings_out_dir, item['file_name'].split('.')[0] + '.pt')
+        torch.save(all_embeddings, file_name)
 
 
 if __name__ == '__main__':

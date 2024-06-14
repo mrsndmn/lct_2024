@@ -47,7 +47,6 @@ class AVMatcherConfig:
     threshold: float = field(default=0.95)
 
 
-
 class AVMatcher():
 
     def __init__(self,
