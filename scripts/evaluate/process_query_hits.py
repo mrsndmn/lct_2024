@@ -37,7 +37,7 @@ def final_metric(tp, fp, fn, final_iou):
 
     return 2 * (final_iou * f) / (final_iou + f + 1e-6)
 
-def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
+def get_metrics(target: pd.DataFrame, submit: pd.DataFrame, debug=False):
 
     target['ID-piracy'] = target['ID_piracy'].map(lambda x: x.removesuffix(".mp4"))
     target['SEG-piracy'] = target['segment']
@@ -59,10 +59,11 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     target_dict = target.groupby(['ID-piracy', 'ID-license']).count().to_dict()['SEG-piracy']
 
     submit_dict = submit.groupby(['ID-piracy', 'ID-license']).count().to_dict()['SEG-piracy']
-    print('len(target)\t', len(target))
-    print('len(submit)\t', len(submit))
-    print("len(orig_dict)\t", len(target_dict))
-    print("len(target_dict)\t", len(submit_dict))
+    if debug:
+        print('len(target)\t', len(target))
+        print('len(submit)\t', len(submit))
+        print("len(orig_dict)\t", len(target_dict))
+        print("len(target_dict)\t", len(submit_dict))
 
     """# Подсчет FP, TP, FN"""
 
@@ -73,7 +74,8 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     for ids, count in target_dict.items():
         if ids not in submit_dict:
             fn += count # модель не нашла что то из оригинальной таблицы
-            print("false negative:", ids)
+            if debug:
+                print("false negative:", ids)
             # breakpoint()
         elif submit_dict[ids] > count:
             fp += submit_dict[ids] - count     # модель нашла больше совпадений чем в оригинальной таблице
@@ -84,14 +86,16 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
         elif submit_dict[ids] == count:
             tp += count                        # если количество совпало, должны засчитать их как true positive
 
-    print("fp, fn, tp", fp, fn, tp)
+    if debug:
+        print("fp, fn, tp", fp, fn, tp)
 
     for ids, count in submit_dict.items():
         if ids not in target_dict:
             fp += count # модель нашла то, чего не было в оригинальной таблице
             # print("false_positive_ids", ids)
 
-    print("fp, fn, tp", fp, fn, tp)
+    if debug:
+        print("fp, fn, tp", fp, fn, tp)
 
     """# Подсчет IOU"""
 
@@ -117,65 +121,89 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
 
         ious.append(max_iou)
 
-    print("sorted_ious", sorted(ious, reverse=True))
+    # print("sorted_ious", sorted(ious, reverse=True))
     ious_no_zeros = [ iou for iou in ious if iou > 0.05]
-    print("ious_no_zeros", sum(ious_no_zeros) / len(ious_no_zeros))
+    if debug:
+        print("ious_no_zeros", sum(ious_no_zeros) / len(ious_no_zeros))
 
-    print(f'F1 = {f1(tp, fp, fn)}')
+    f1_value = f1(tp, fp, fn)
+    if debug:
+        print(f'F1 = {f1_value}')
 
     final_iou = sum(ious) / (len(ious) + fp) # чтобы учесть количество лишних в IOU добавим в знаменатель их количество (так как их IOU = 0)
-    print(f'IOU = {final_iou}')
+    if debug:
+        print(f'IOU = {final_iou}')
 
-    print(f'Metric = {final_metric(tp, fp, fn, final_iou)}')
+    final_metric_value = final_metric(tp, fp, fn, final_iou)
+    if debug:
+        print(f'Metric = {final_metric_value}')
+
+    return {
+        "final_iou": final_iou,
+        "f1": f1_value,
+        "final_metric": final_metric_value,
+    }
 
 if __name__ == '__main__':
 
+    query_interval_step = 1.0
     query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
+
+    # query_interval_step = 0.4
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
+
+    # query_interval_step = 0.2
+    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
+
     query_hits_files = os.listdir(query_hits_dir)
 
-    matched_intervals_for_queries = []
-    for query_hits_file in query_hits_files:
-        query_hits_full_file_path = os.path.join(query_hits_dir, query_hits_file)
-        file_id = query_hits_file.split('.')[0]
+    for threshold in range(90, 100):
+        threshold = threshold / 100
 
-        with open(query_hits_full_file_path, 'rb') as f:
-            query_hits_intervals = pickle.load(f)
+        matched_intervals_for_queries = []
+        for query_hits_file in query_hits_files:
+            query_hits_full_file_path = os.path.join(query_hits_dir, query_hits_file)
+            file_id = query_hits_file.split('.')[0]
 
-        # query_embeddings = query_embeddings[::2]
-        # print(len(query_hits_intervals))
+            with open(query_hits_full_file_path, 'rb') as f:
+                query_hits_intervals = pickle.load(f)
 
-        intervals_config = IntervalsConfig(
-            threshold=0.93,
-            index_interval_step=1.0,
-            query_interval_step=1.0,
-            merge_segments_with_diff_seconds=10.0,
-            interval_duration_in_seconds=5,
-            segment_min_duration=20,
-        )
-        matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
+            # query_embeddings = query_embeddings[::2]
+            # print(len(query_hits_intervals))
 
-        matched_intervals_for_queries.append(matched_intervals)
+            intervals_config = IntervalsConfig(
+                threshold=threshold,
+                index_interval_step=1.0,
+                query_interval_step=query_interval_step,
+                merge_segments_with_diff_seconds=10.0,
+                interval_duration_in_seconds=5,
+                segment_min_duration=20,
+            )
+            matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
 
-    validate_file_items = []
-    for matched_intervals in matched_intervals_for_queries:
-        for mi in matched_intervals:
-            mi: MatchedSegmentsPair
-            piracy_interval: Segment = mi.current_segment
-            license_interval: Segment = mi.licensed_segment
-            validate_file_item = {
-                "ID-piracy": piracy_interval.file_id,
-                "SEG-piracy": piracy_interval.format_string(),
-                "ID-license": license_interval.file_id,
-                "SEG-license": license_interval.format_string(),
-            }
-            validate_file_items.append(validate_file_item)
+            matched_intervals_for_queries.append(matched_intervals)
 
-    created_df = pd.DataFrame(validate_file_items)
+        validate_file_items = []
+        for matched_intervals in matched_intervals_for_queries:
+            for mi in matched_intervals:
+                mi: MatchedSegmentsPair
+                piracy_interval: Segment = mi.current_segment
+                license_interval: Segment = mi.licensed_segment
+                validate_file_item = {
+                    "ID-piracy": piracy_interval.file_id,
+                    "SEG-piracy": piracy_interval.format_string(),
+                    "ID-license": license_interval.file_id,
+                    "SEG-license": license_interval.format_string(),
+                }
+                validate_file_items.append(validate_file_item)
 
-    target_df = pd.read_csv('data/rutube/piracy_val.csv')
+        created_df = pd.DataFrame(validate_file_items)
 
-    get_metrics(target_df, created_df)
+        target_df = pd.read_csv('data/rutube/piracy_val.csv')
+
+        got_metrics = get_metrics(target_df, created_df, debug=False)
+
+        print("threshold", round(threshold, 2), "\tfinal_iou", round(got_metrics['final_iou'], 3), "\tf1", round(got_metrics['f1'], 3),  "\tfinal_metric_value", round(got_metrics['final_metric'], 3))
 
     raise Exception
 

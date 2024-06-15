@@ -120,3 +120,61 @@ pytest -s src/avm/search/audio_test.py
 metric=Dot      time= 0.010836975419997542
 metric=Cosine   time= 0.10016995635000057
 ```
+
+
+# Как трешолд и количество эмбэддингов в интервалах влияет на результирующую метрику?
+
+
+```
+query_interval_step=0.2
+max_final_metric_value=0.605
+
+threshold 0.9   final_iou 0.214         f1 0.606        final_metric_value 0.317
+threshold 0.91  final_iou 0.258         f1 0.623        final_metric_value 0.365
+threshold 0.92  final_iou 0.304         f1 0.642        final_metric_value 0.412
+threshold 0.93  final_iou 0.386         f1 0.687        final_metric_value 0.494
+threshold 0.94  final_iou 0.39          f1 0.677        final_metric_value 0.495
+threshold 0.95  final_iou 0.443         f1 0.704        final_metric_value 0.544
+threshold 0.96  final_iou 0.492         f1 0.751        final_metric_value 0.594
+threshold 0.97  final_iou 0.499         f1 0.766        final_metric_value 0.605 <-- max
+threshold 0.98  final_iou 0.489         f1 0.773        final_metric_value 0.599
+threshold 0.99  final_iou 0.129         f1 0.606        final_metric_value 0.213
+```
+
+```
+query_interval_step=0.4
+max_final_metric_value=0.657
+
+threshold 0.9   final_iou 0.389         f1 0.735        final_metric_value 0.509
+threshold 0.91  final_iou 0.421         f1 0.757        final_metric_value 0.541
+threshold 0.92  final_iou 0.491         f1 0.786        final_metric_value 0.604
+threshold 0.93  final_iou 0.534         f1 0.797        final_metric_value 0.639
+threshold 0.94  final_iou 0.528         f1 0.783        final_metric_value 0.631
+threshold 0.95  final_iou 0.552         f1 0.803        final_metric_value 0.654
+threshold 0.96  final_iou 0.559         f1 0.806        final_metric_value 0.66
+threshold 0.97  final_iou 0.55          f1 0.815        final_metric_value 0.657
+threshold 0.98  final_iou 0.495         f1 0.797        final_metric_value 0.611
+threshold 0.99  final_iou 0.115         f1 0.593        final_metric_value 0.193
+```
+
+```
+query_interval_step=1.0
+max_final_metric_value=0.713
+
+threshold 0.9   final_iou 0.534         f1 0.828        final_metric_value 0.649
+threshold 0.91  final_iou 0.535         f1 0.821        final_metric_value 0.647
+threshold 0.92  final_iou 0.561         f1 0.84         final_metric_value 0.673
+threshold 0.93  final_iou 0.608         f1 0.86         final_metric_value 0.713
+threshold 0.94  final_iou 0.599         f1 0.852        final_metric_value 0.704
+threshold 0.95  final_iou 0.593         f1 0.854        final_metric_value 0.7
+threshold 0.96  final_iou 0.517         f1 0.824        final_metric_value 0.635
+threshold 0.97  final_iou 0.421         f1 0.78         final_metric_value 0.547
+threshold 0.98  final_iou 0.245         f1 0.662        final_metric_value 0.358
+threshold 0.99  final_iou 0.051         f1 0.395        final_metric_value 0.09
+```
+
+```
+query_interval_step=2.0
+
+
+```
