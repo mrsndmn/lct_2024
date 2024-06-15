@@ -146,6 +146,7 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame, debug=False):
 
 if __name__ == '__main__':
 
+    # query_hits_intervals_step = 5
     query_interval_step = 1.0
     query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
 
