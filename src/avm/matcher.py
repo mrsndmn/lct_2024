@@ -36,13 +36,14 @@ class MatchedSegmentsPair:
 
 @dataclass
 class AVMatcherConfig:
+    query_interval_step:float # обязательно надо явно проставлять, тк может разливаться
+    index_interval_step:float = field(default=1.0)
+    interval_duration_in_seconds:float = field(default=5.0)
+
     extracted_audios_dir: str = field(default="/tmp/avmatcher/extracted_audios")
 
     sampling_rate:int = field(default=16000)
 
-    interval_duration_in_seconds:float = field(default=5.0)
-    query_interval_step:float = field(default=0.2)
-    index_interval_step:float = field(default=1.0)
 
     # Мерджим сегменты, если у них разница во времени меньше X секунд
     merge_segments_with_diff_seconds:float = field(default=10.)
@@ -50,7 +51,7 @@ class AVMatcherConfig:
     segment_min_duration:int = field(default=10)
     # Удаляем сматченные эмбэддинги, которые отличаются больше, чем на
     # заданнный трешолд
-    threshold: float = field(default=0.95)
+    threshold: float = field(default=0.93)
 
 
 class AVMatcher():
@@ -69,25 +70,34 @@ class AVMatcher():
 
         os.makedirs(self.config.extracted_audios_dir, exist_ok=True)
 
-    def find_matches(self, video_full_path: str):
+    def find_matches(self, video_full_path: str, cleanup=True) -> List[MatchedSegmentsPair]:
 
         assert video_full_path.endswith(".mp4")
         
         file_id = os.path.basename(video_full_path).removesuffix(".mp4")
-        
-        audio_file: str = self.extract_audio_from_video_file(video_full_path, file_id=file_id)
 
-        audio_matched_intervals = self.find_audio_only_matches(audio_file)
+        print("extracting audio from video")        
+        audio_file: str = self.extract_audio_from_video_file(video_full_path, file_id=file_id)
+        print("audio file extracted", audio_file)
+
+        audio_matched_intervals = self.find_audio_only_matches(audio_file, file_id=file_id)
+
+        if cleanup:
+            os.remove(audio_file)
 
         return audio_matched_intervals
 
-    def find_audio_only_matches(self, audio_file, file_id):
+    def find_audio_only_matches(self, audio_file, file_id) -> List[MatchedSegmentsPair]:
         
-        query_audio_embeddings: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file, file_id)
+        print("fingerprinting audio")
+        query_audio_embeddings: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file)
+        print("query_audio_embeddings", query_audio_embeddings.shape)
         
-        query_hits = self.audio_index.search_sequential(query_audio_embeddings)
+        print("audio embeddings search")
+        query_hits = self.audio_index.search_sequential(query_audio_embeddings.numpy())
 
-        matched_segments = get_matched_segments(self.config, query_hits)
+        print("generating matched segments")
+        matched_segments = get_matched_segments(self.config, file_id, query_hits)
 
         return matched_segments
 
@@ -98,7 +108,11 @@ class AVMatcher():
         audio_file_name = file_id + ".wav"
         audio_full_path = os.path.join(self.config.extracted_audios_dir, audio_file_name)
 
-        exit_code = os.system(f"ffmpeg -i {video_full_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_full_path}")
+        if os.path.exists(audio_full_path):
+            print("file was already preprocessed", audio_full_path)
+            return audio_full_path
+
+        exit_code = os.system(f"ffmpeg -y -i {video_full_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_full_path}")
         if exit_code != 0:
             raise Exception(f"can't extract audio: {exit_code}")
 

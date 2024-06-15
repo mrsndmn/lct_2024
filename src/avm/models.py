@@ -1,6 +1,10 @@
 from transformers import AutoFeatureExtractor, Wav2Vec2ForXVector, Data2VecAudioForXVector, WavLMForXVector, UniSpeechSatForXVector, UniSpeechSatConfig
 
 
+def get_default_model():
+    return get_model("UniSpeechSatForXVector", 'data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97')
+
+
 def get_model(model_name, from_pretrained=None):
     if model_name == 'Wav2Vec2ForXVector':
         feature_extractor = AutoFeatureExtractor.from_pretrained("anton-l/wav2vec2-base-superb-sv")

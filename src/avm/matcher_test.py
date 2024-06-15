@@ -1,8 +1,53 @@
 import pytest
+import torch
 import pickle
 from qdrant_client.conversions import common_types as types
 
-from avm.matcher import AVMatcherConfig, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
+from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
+from avm.search.audio import AudioIndex
+from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
+from avm.models import get_default_model
+
+def test_matcher_end_to_end():
+
+    matcher_config = AVMatcherConfig(
+        query_interval_step=1.0,
+    )
+    audio_index = AudioIndex(
+        index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
+        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+    )
+    
+    audio_validation_figerprinter_config = AudioFingerPrinterConfig(
+        interval_step=matcher_config.query_interval_step,
+        batch_size=10,
+    )
+
+    model, feature_extractor = get_default_model()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model.eval()
+    model.to(device)
+
+    audio_validation_fingerprinter = AudioFingerPrinter(
+        audio_validation_figerprinter_config,
+        model=model,
+        feature_extractor=feature_extractor,
+    )
+
+    avmatcher = AVMatcher(
+        matcher_config,
+        audio_index=audio_index,
+        audio_fingerprinter=audio_validation_fingerprinter,
+    )
+
+    test_video_path = 'data/rutube/videos/test_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+    result_matches = avmatcher.find_matches(test_video_path, cleanup=False)
+
+    assert len(result_matches) == 1
+    assert result_matches[0].current_segment.duration() > 140
+    assert result_matches[0].licensed_segment.file_id == 'ded3d179001b3f679a0101be95405d2c'
+
+    return
 
 
 def test_get_matched_segments_empty():

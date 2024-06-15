@@ -28,17 +28,22 @@ class AudioFingerPrinter():
         self.feature_extractor = feature_extractor
 
     def fingerprint_from_file(self, full_audio_path) -> torch.Tensor:
-        waveform = torchaudio.load(full_audio_path)
+        waveform, sample_rate = torchaudio.load(full_audio_path)
+        if sample_rate != self.config.sampling_rate:
+            raise ValueError(f"audio file was not correctly normalized - expected sapmle rate = {self.config.sampling_rate}")
 
-        return self.fingerprint(waveform=waveform)
+        assert waveform.shape[0] == 1, 'expected mono channel audio'
+        return self.fingerprint(waveform=waveform[0].numpy())
 
     def fingerprint(self, waveform: np.ndarray) -> torch.Tensor:
 
         if self.config.audio_normalization:
             waveform = (waveform - waveform.min()) / (waveform.max() - waveform.min() + 1e-6) * 2.0 - 1.0
+        
+        assert len(waveform.shape) == 1, 'expected single audio with dim: [ sequence_len ]'
 
         inputs = self.feature_extractor(
-            [waveform], sampling_rate=self.config.sampling_rate, return_tensors="pt", padding=True
+            waveform, sampling_rate=self.config.sampling_rate, return_tensors="pt", padding=True
         )
 
         interval_num_samples = int(self.config.interval_duration_in_seconds * self.config.sampling_rate)
@@ -56,6 +61,7 @@ class AudioFingerPrinter():
             inputs_shifted.append(current_interval)
 
         inputs_shifted = torch.cat(inputs_shifted, dim=0)
+        print("inputs_shifted", inputs_shifted.shape)
 
         batch_size = self.config.batch_size
         with torch.no_grad():
