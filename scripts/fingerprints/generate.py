@@ -2,7 +2,7 @@ from typing import Optional
 from dataclasses import dataclass, field
 import torch
 from datasets import Dataset, Audio
-from avm.models import get_model
+from avm.models.audio import get_audio_model
 import os
 from tqdm.auto import tqdm
 from avm.fingerprint.audio import AudioFingerPrinter
@@ -48,7 +48,7 @@ class FingerprintValAudios10s():
     dataset_path = 'data/rutube/compressed_val_audios.dataset'
     few_dataset_samples = None
 
-    interval_duration_in_seconds = 5
+    interval_duration_in_seconds = 10
     interval_step = 1.0
     batch_size = 64
     embeddings_normalization = True
@@ -123,7 +123,7 @@ def generate_fingerprints(config: FingerprintConfig):
     if config.few_dataset_samples is not None:
         audios_dataset = audios_dataset.select(range(config.few_dataset_samples))
 
-    model, feature_extractor = get_model(config.model_name, from_pretrained=config.model_from_pretrained)
+    model, feature_extractor = get_audio_model(config.model_name, from_pretrained=config.model_from_pretrained)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.to(device)
@@ -143,8 +143,8 @@ def generate_fingerprints(config: FingerprintConfig):
 if __name__ == '__main__':
 
     # index_config = FingerprintIndexAudios()
-    index_config = FingerprintIndexAudios10s()
-    generate_fingerprints(index_config)
+    # index_config = FingerprintIndexAudios10s()
+    # generate_fingerprints(index_config)
 
     # val_config = FingerprintValAudios()
     val_config = FingerprintValAudios10s()

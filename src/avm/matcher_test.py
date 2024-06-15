@@ -6,7 +6,7 @@ from qdrant_client.conversions import common_types as types
 from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
 from avm.search.audio import AudioIndex
 from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
-from avm.models import get_default_model
+from avm.models.audio import get_default_audio_model
 
 def test_matcher_end_to_end():
 
@@ -23,7 +23,7 @@ def test_matcher_end_to_end():
         batch_size=10,
     )
 
-    model, feature_extractor = get_default_model()
+    model, feature_extractor = get_default_audio_model()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.eval()
     model.to(device)

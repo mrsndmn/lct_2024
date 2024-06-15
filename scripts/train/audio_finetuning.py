@@ -24,20 +24,9 @@ from scripts.pipeline.pipeline import PipelineConfig, run_pipeline
 import os
 from scripts.data.generate_audio_augmentations import AudioAugmentator
 
-from avm.models import get_model
+from avm.models.audio import get_audio_model
 
-# contrastive loss function, adapted from
-# https://sachinruk.github.io/blog/pytorch/pytorch%20lightning/loss%20function/gpu/2021/03/07/CLIP.html
-def contrastive_loss(logits: torch.Tensor) -> torch.Tensor:
-    return nn.functional.cross_entropy(logits, torch.arange(len(logits), device=logits.device))
-
-
-def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
-    caption_loss = contrastive_loss(similarity)
-    image_loss = contrastive_loss(similarity.T)
-    # print("caption_loss", caption_loss)
-    # print("image_loss", image_loss)
-    return (caption_loss + image_loss) / 2.0
+from scripts.train.metric_learning import clip_loss
 
 
 @dataclass
@@ -154,7 +143,7 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     )
 
     # Model and optimizer
-    model, feature_extractor = get_model(config.model_name, config.from_pretrained)
+    model, feature_extractor = get_audio_model(config.model_name, config.from_pretrained)
     if config.freeze_skeleton:
         freeze_model(model.unispeech_sat)
 

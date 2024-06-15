@@ -1,15 +1,16 @@
 import pytest
 
-from avm.models import get_model
+from avm.models.image import get_default_image_model
 
 def test_model_params():
 
-    model, _ = get_model('UniSpeechSatForXVector')
+    model = get_default_image_model()
 
     num_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     print("num_parameters", num_parameters)
 
-    assert num_parameters < 1100000
+    # num_parameters 6 862 692
+    assert num_parameters < 10000000
 
     return
