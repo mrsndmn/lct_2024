@@ -121,60 +121,144 @@ metric=Dot      time= 0.010836975419997542
 metric=Cosine   time= 0.10016995635000057
 ```
 
-
 # Как трешолд и количество эмбэддингов в интервалах влияет на результирующую метрику?
 
+`scripts/evaluate/process_query_hits.py`
 
+Длинна одного интервала = 5 секунд^
+
+Выводы: наибольшее значение итоговой метрики достгается при пересечении интервалов
+примерно на половину или чуть больше половины.
+
+Максимальное значение метрики = `0.776` с парамтерами:
 ```
-query_interval_step=0.2
-max_final_metric_value=0.605
-
-threshold 0.9   final_iou 0.214         f1 0.606        final_metric_value 0.317
-threshold 0.91  final_iou 0.258         f1 0.623        final_metric_value 0.365
-threshold 0.92  final_iou 0.304         f1 0.642        final_metric_value 0.412
-threshold 0.93  final_iou 0.386         f1 0.687        final_metric_value 0.494
-threshold 0.94  final_iou 0.39          f1 0.677        final_metric_value 0.495
-threshold 0.95  final_iou 0.443         f1 0.704        final_metric_value 0.544
-threshold 0.96  final_iou 0.492         f1 0.751        final_metric_value 0.594
-threshold 0.97  final_iou 0.499         f1 0.766        final_metric_value 0.605 <-- max
-threshold 0.98  final_iou 0.489         f1 0.773        final_metric_value 0.599
-threshold 0.99  final_iou 0.129         f1 0.606        final_metric_value 0.213
+query_interval_step         2.8
+query_hits_intervals_step   14
+threshold                   0.92
 ```
 
-```
-query_interval_step=0.4
-max_final_metric_value=0.657
-
-threshold 0.9   final_iou 0.389         f1 0.735        final_metric_value 0.509
-threshold 0.91  final_iou 0.421         f1 0.757        final_metric_value 0.541
-threshold 0.92  final_iou 0.491         f1 0.786        final_metric_value 0.604
-threshold 0.93  final_iou 0.534         f1 0.797        final_metric_value 0.639
-threshold 0.94  final_iou 0.528         f1 0.783        final_metric_value 0.631
-threshold 0.95  final_iou 0.552         f1 0.803        final_metric_value 0.654
-threshold 0.96  final_iou 0.559         f1 0.806        final_metric_value 0.66
-threshold 0.97  final_iou 0.55          f1 0.815        final_metric_value 0.657
-threshold 0.98  final_iou 0.495         f1 0.797        final_metric_value 0.611
-threshold 0.99  final_iou 0.115         f1 0.593        final_metric_value 0.193
-```
+С экстримально маленькими интервалами (200, 400 мс) пересечения качество падает.
+При пересеченнии стремящемся к длинне самого интервала тоже качество падает.
 
 ```
-query_interval_step=1.0
-max_final_metric_value=0.713
-
+============================================
+query_interval_step         1.0
+query_hits_intervals_step   5
+threshold 0.8   final_iou 0.496         f1 0.818        final_metric_value 0.617
+threshold 0.82  final_iou 0.496         f1 0.818        final_metric_value 0.617
+threshold 0.84  final_iou 0.496         f1 0.818        final_metric_value 0.618
+threshold 0.86  final_iou 0.504         f1 0.821        final_metric_value 0.624
+threshold 0.88  final_iou 0.515         f1 0.818        final_metric_value 0.632
 threshold 0.9   final_iou 0.534         f1 0.828        final_metric_value 0.649
-threshold 0.91  final_iou 0.535         f1 0.821        final_metric_value 0.647
 threshold 0.92  final_iou 0.561         f1 0.84         final_metric_value 0.673
-threshold 0.93  final_iou 0.608         f1 0.86         final_metric_value 0.713
-threshold 0.94  final_iou 0.599         f1 0.852        final_metric_value 0.704
-threshold 0.95  final_iou 0.593         f1 0.854        final_metric_value 0.7
+threshold 0.94  final_iou 0.599         f1 0.852        final_metric_value 0.704  <-- max
 threshold 0.96  final_iou 0.517         f1 0.824        final_metric_value 0.635
-threshold 0.97  final_iou 0.421         f1 0.78         final_metric_value 0.547
 threshold 0.98  final_iou 0.245         f1 0.662        final_metric_value 0.358
-threshold 0.99  final_iou 0.051         f1 0.395        final_metric_value 0.09
-```
-
-```
-query_interval_step=2.0
 
 
+============================================
+query_interval_step         2.0
+query_hits_intervals_step   10
+threshold 0.8   final_iou 0.605         f1 0.889        final_metric_value 0.72
+threshold 0.82  final_iou 0.61          f1 0.893        final_metric_value 0.725
+threshold 0.84  final_iou 0.618         f1 0.896        final_metric_value 0.731  <-- max
+threshold 0.86  final_iou 0.6           f1 0.884        final_metric_value 0.714
+threshold 0.88  final_iou 0.594         f1 0.872        final_metric_value 0.706
+threshold 0.9   final_iou 0.609         f1 0.874        final_metric_value 0.718
+threshold 0.92  final_iou 0.62          f1 0.877        final_metric_value 0.726
+threshold 0.94  final_iou 0.623         f1 0.88         final_metric_value 0.73
+threshold 0.96  final_iou 0.486         f1 0.839        final_metric_value 0.616
+threshold 0.98  final_iou 0.205         f1 0.629        final_metric_value 0.309
+
+
+============================================
+query_interval_step         2.4
+query_hits_intervals_step   12
+threshold 0.8   final_iou 0.641         f1 0.897        final_metric_value 0.748
+threshold 0.82  final_iou 0.642         f1 0.897        final_metric_value 0.748
+threshold 0.84  final_iou 0.641         f1 0.897        final_metric_value 0.748
+threshold 0.86  final_iou 0.634         f1 0.898        final_metric_value 0.743
+threshold 0.88  final_iou 0.636         f1 0.892        final_metric_value 0.742
+threshold 0.9   final_iou 0.634         f1 0.883        final_metric_value 0.738
+threshold 0.92  final_iou 0.656         f1 0.899        final_metric_value 0.758
+threshold 0.94  final_iou 0.656         f1 0.902        final_metric_value 0.759
+threshold 0.96  final_iou 0.586         f1 0.879        final_metric_value 0.703
+threshold 0.98  final_iou 0.157         f1 0.64         final_metric_value 0.252
+
+
+============================================
+query_interval_step         2.6
+query_hits_intervals_step   13
+threshold 0.8   final_iou 0.578         f1 0.874        final_metric_value 0.696
+threshold 0.82  final_iou 0.574         f1 0.871        final_metric_value 0.692
+threshold 0.84  final_iou 0.584         f1 0.881        final_metric_value 0.703
+threshold 0.86  final_iou 0.594         f1 0.888        final_metric_value 0.712
+threshold 0.88  final_iou 0.6           f1 0.888        final_metric_value 0.716
+threshold 0.9   final_iou 0.65          f1 0.9          final_metric_value 0.755
+threshold 0.92  final_iou 0.639         f1 0.882        final_metric_value 0.741
+threshold 0.94  final_iou 0.661         f1 0.903        final_metric_value 0.763
+threshold 0.96  final_iou 0.568         f1 0.872        final_metric_value 0.688
+threshold 0.98  final_iou 0.155         f1 0.648        final_metric_value 0.25
+
+
+============================================
+query_interval_step         2.8
+query_hits_intervals_step   14
+threshold 0.8   final_iou 0.658         f1 0.912        final_metric_value 0.764
+threshold 0.82  final_iou 0.653         f1 0.908        final_metric_value 0.76
+threshold 0.84  final_iou 0.653         f1 0.908        final_metric_value 0.76
+threshold 0.86  final_iou 0.648         f1 0.905        final_metric_value 0.755
+threshold 0.88  final_iou 0.647         f1 0.902        final_metric_value 0.753
+threshold 0.9   final_iou 0.675         f1 0.908        final_metric_value 0.775
+threshold 0.92  final_iou 0.675         f1 0.912        final_metric_value 0.776 <-- max
+threshold 0.94  final_iou 0.661         f1 0.908        final_metric_value 0.765
+threshold 0.96  final_iou 0.552         f1 0.877        final_metric_value 0.677
+threshold 0.98  final_iou 0.143         f1 0.619        final_metric_value 0.232
+
+
+============================================
+query_interval_step         3.6
+query_hits_intervals_step   18
+threshold 0.8   final_iou 0.653         f1 0.908        final_metric_value 0.759
+threshold 0.82  final_iou 0.653         f1 0.908        final_metric_value 0.76
+threshold 0.84  final_iou 0.653         f1 0.908        final_metric_value 0.76
+threshold 0.86  final_iou 0.631         f1 0.893        final_metric_value 0.74
+threshold 0.88  final_iou 0.644         f1 0.902        final_metric_value 0.751
+threshold 0.9   final_iou 0.649         f1 0.902        final_metric_value 0.755
+threshold 0.92  final_iou 0.67          f1 0.917        final_metric_value 0.775  <-- max
+threshold 0.94  final_iou 0.644         f1 0.905        final_metric_value 0.752
+threshold 0.96  final_iou 0.418         f1 0.789        final_metric_value 0.546
+threshold 0.98  final_iou 0.085         f1 0.575        final_metric_value 0.148
+
+
+============================================
+query_interval_step         4.0
+query_hits_intervals_step   20
+threshold 0.8   final_iou 0.63          f1 0.899        final_metric_value 0.741
+threshold 0.82  final_iou 0.63          f1 0.899        final_metric_value 0.741  <-- max
+threshold 0.84  final_iou 0.623         f1 0.893        final_metric_value 0.734
+threshold 0.86  final_iou 0.616         f1 0.887        final_metric_value 0.727
+threshold 0.88  final_iou 0.619         f1 0.884        final_metric_value 0.728
+threshold 0.9   final_iou 0.63          f1 0.89         final_metric_value 0.738
+threshold 0.92  final_iou 0.611         f1 0.884        final_metric_value 0.722
+threshold 0.94  final_iou 0.486         f1 0.841        final_metric_value 0.616
+threshold 0.96  final_iou 0.336         f1 0.766        final_metric_value 0.467
+threshold 0.98  final_iou 0.117         f1 0.491        final_metric_value 0.189
+
+
+============================================
+query_interval_step         5.0
+query_hits_intervals_step   25
+threshold 0.8   final_iou 0.578         f1 0.864        final_metric_value 0.693
+threshold 0.82  final_iou 0.573         f1 0.864        final_metric_value 0.689
+threshold 0.84  final_iou 0.579         f1 0.867        final_metric_value 0.694
+threshold 0.86  final_iou 0.578         f1 0.867        final_metric_value 0.694  <-- max
+threshold 0.88  final_iou 0.568         f1 0.859        final_metric_value 0.684
+threshold 0.9   final_iou 0.56          f1 0.855        final_metric_value 0.677
+threshold 0.92  final_iou 0.469         f1 0.816        final_metric_value 0.595
+threshold 0.94  final_iou 0.391         f1 0.794        final_metric_value 0.524
+threshold 0.96  final_iou 0.233         f1 0.674        final_metric_value 0.346
+threshold 0.98  final_iou 0.079         f1 0.471        final_metric_value 0.135
 ```
+
+TODO Длинна интервала 10 секунд 

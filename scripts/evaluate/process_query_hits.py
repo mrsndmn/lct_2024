@@ -1,6 +1,7 @@
 import pickle
 import os
 from tempfile import TemporaryFile
+from copy import deepcopy
 
 import pandas as pd
 from scripts.evaluate.borrow_intervals import IntervalsConfig
@@ -146,9 +147,9 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame, debug=False):
 
 if __name__ == '__main__':
 
-    # query_hits_intervals_step = 5
-    query_interval_step = 1.0
-    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
+
+    # query_interval_step = 1.0
+    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
 
     # query_interval_step = 0.4
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
@@ -156,55 +157,75 @@ if __name__ == '__main__':
     # query_interval_step = 0.2
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
 
+    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
     query_hits_files = os.listdir(query_hits_dir)
 
-    for threshold in range(90, 100):
-        threshold = threshold / 100
+    # query_interval_step = 2.4
+    # query_hits_intervals_step = 12
+    query_intervals_by_file_name = dict()
+    for query_hits_file in query_hits_files:
+        query_hits_full_file_path = os.path.join(query_hits_dir, query_hits_file)
 
-        matched_intervals_for_queries = []
-        for query_hits_file in query_hits_files:
-            query_hits_full_file_path = os.path.join(query_hits_dir, query_hits_file)
-            file_id = query_hits_file.split('.')[0]
+        with open(query_hits_full_file_path, 'rb') as f:
+            query_hits_intervals = pickle.load(f)
 
-            with open(query_hits_full_file_path, 'rb') as f:
-                query_hits_intervals = pickle.load(f)
+        query_intervals_by_file_name[query_hits_file] = query_hits_intervals
 
-            # query_embeddings = query_embeddings[::2]
-            # print(len(query_hits_intervals))
+    print("query_intervals_by_file_name", len(query_intervals_by_file_name))
 
-            intervals_config = IntervalsConfig(
-                threshold=threshold,
-                index_interval_step=1.0,
-                query_interval_step=query_interval_step,
-                merge_segments_with_diff_seconds=10.0,
-                interval_duration_in_seconds=5,
-                segment_min_duration=20,
-            )
-            matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
+    # for query_hits_intervals_step in [ 5, 10, 12, 13, 14, 18, 20, 25 ]:
+    for query_hits_intervals_step in [ 12, 13, 14 ]:
+        query_interval_step = round(query_hits_intervals_step * 0.2, 3)
+        assert abs(0.2 * query_hits_intervals_step - query_interval_step) < 0.001
 
-            matched_intervals_for_queries.append(matched_intervals)
+        print("\n\n============================================")
+        print("query_interval_step        ", query_interval_step)
+        print("query_hits_intervals_step  ", query_hits_intervals_step)
 
-        validate_file_items = []
-        for matched_intervals in matched_intervals_for_queries:
-            for mi in matched_intervals:
-                mi: MatchedSegmentsPair
-                piracy_interval: Segment = mi.current_segment
-                license_interval: Segment = mi.licensed_segment
-                validate_file_item = {
-                    "ID-piracy": piracy_interval.file_id,
-                    "SEG-piracy": piracy_interval.format_string(),
-                    "ID-license": license_interval.file_id,
-                    "SEG-license": license_interval.format_string(),
-                }
-                validate_file_items.append(validate_file_item)
+        for threshold in range(86, 100, 2):
+            threshold = threshold / 100
 
-        created_df = pd.DataFrame(validate_file_items)
+            matched_intervals_for_queries = []
+            for query_hits_file in query_hits_files:
+                file_id = query_hits_file.split('.')[0]
 
-        target_df = pd.read_csv('data/rutube/piracy_val.csv')
+                query_hits_intervals = query_intervals_by_file_name[query_hits_file]
+                query_hits_intervals = query_hits_intervals[::query_hits_intervals_step]
+                # print("len(query_hits_intervals)", len(query_hits_intervals))
 
-        got_metrics = get_metrics(target_df, created_df, debug=False)
+                intervals_config = IntervalsConfig(
+                    threshold=threshold,
+                    query_interval_step=query_interval_step,
+                    index_interval_step=1.0,
+                    merge_segments_with_diff_seconds=10.0,
+                    interval_duration_in_seconds=5,
+                    segment_min_duration=20,
+                )
+                matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
 
-        print("threshold", round(threshold, 2), "\tfinal_iou", round(got_metrics['final_iou'], 3), "\tf1", round(got_metrics['f1'], 3),  "\tfinal_metric_value", round(got_metrics['final_metric'], 3))
+                matched_intervals_for_queries.append(matched_intervals)
+
+            validate_file_items = []
+            for matched_intervals in matched_intervals_for_queries:
+                for mi in matched_intervals:
+                    mi: MatchedSegmentsPair
+                    piracy_interval: Segment = mi.current_segment
+                    license_interval: Segment = mi.licensed_segment
+                    validate_file_item = {
+                        "ID-piracy": piracy_interval.file_id,
+                        "SEG-piracy": piracy_interval.format_string(),
+                        "ID-license": license_interval.file_id,
+                        "SEG-license": license_interval.format_string(),
+                    }
+                    validate_file_items.append(validate_file_item)
+
+            created_df = pd.DataFrame(validate_file_items)
+
+            target_df = pd.read_csv('data/rutube/piracy_val.csv')
+
+            got_metrics = get_metrics(target_df, created_df, debug=False)
+
+            print("threshold", round(threshold, 2), "\tfinal_iou", round(got_metrics['final_iou'], 3), "\tf1", round(got_metrics['f1'], 3),  "\tfinal_metric_value", round(got_metrics['final_metric'], 3))
 
     raise Exception
 
