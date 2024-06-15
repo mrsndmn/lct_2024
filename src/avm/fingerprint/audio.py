@@ -8,6 +8,17 @@ import torch.nn.functional as F
 import numpy as np
 
 @dataclass
+class Segment:
+    # Сегмент для одного аудио/видео -- непрерывный участок
+    file_id: str
+    start_second: float
+    end_second: float
+
+    def format_duration(self):
+        return f"{int(self.start_second)}-{int(self.end_second)}"
+
+
+@dataclass
 class AudioFingerPrinterConfig:
     # важно передавать это поле, тк для индекса и валидации
     # значения моугт различаться
@@ -46,19 +57,15 @@ class AudioFingerPrinter():
         input_values = inputs['input_values']
         inputs_shifted = []
         for i in range(0, input_values.shape[-1], interval_step_num_samples):
-            # inputs['input_values'].shape[-1]
             interval_right_boarder = min(i+interval_num_samples, input_values.shape[-1])
             current_interval = input_values[:, i:interval_right_boarder]
             if current_interval.shape[-1] < interval_num_samples:
                 padding_size = interval_num_samples - current_interval.shape[-1]
-                # print(f"run padding for {padding_size}")
                 current_interval = F.pad(current_interval, [0, padding_size], 'constant', value=0)
 
-            # print("current_interval", current_interval.shape)
             inputs_shifted.append(current_interval)
 
         inputs_shifted = torch.cat(inputs_shifted, dim=0)
-        # print("inputs_shifted", inputs_shifted.shape, "input_values", input_values.shape)
 
         batch_size = self.config.batch_size
         with torch.no_grad():

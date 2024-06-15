@@ -17,6 +17,9 @@ class Segment:
 
     def format_duration(self):
         return f"{int(self.start_second)}-{int(self.end_second)}"
+    
+    def is_valid(self):
+        assert self.start_second < self.end_second
 
 
 @dataclass
@@ -182,6 +185,12 @@ def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[Ma
         if segments_pair.current_segment.end_second - segments_pair.current_segment.start_second < config.segment_min_duration:
             continue
         filtered_segments.append(segments_pair)
+
+    # todo validate segments
+    # for segments_pair in merged_again_segments:
+    #     segments_pair.current_segment.is_valid()
+    #     segments_pair.licensed_segment.is_valid()
+
 
     return filtered_segments
 

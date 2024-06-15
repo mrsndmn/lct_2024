@@ -4,7 +4,7 @@ import torch
 from copy import deepcopy
 from avm.search.audio import AudioIndex
 # from qdrant_client.conversions import common_types as types
-from avm.matcher import Segment, get_matched_segments
+from avm.matcher import Segment, MatchedSegmentsPair, get_matched_segments
 # [
 #   (Segment(cur_file), Segment(target_file) )
 # ]
@@ -80,44 +80,23 @@ if __name__ == '__main__':
 
     query_embeddings_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings/'
     query_embeddings_files = sorted(os.listdir(query_embeddings_dir))
-    
-    matched_intervals_for_queries = []
 
+    search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
+    os.makedirs(search_val_embeddings_base_path, exist_ok=True)
+    
     for query_embeddings_file in tqdm(query_embeddings_files):
         query_embeddings_file: str
         file_id = query_embeddings_file.removesuffix(".pt")
         query_embeddings = torch.load(os.path.join(query_embeddings_dir, query_embeddings_file))
 
+        query_embeddings = query_embeddings[::2]
+
         query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
 
-        intervals_config = IntervalsConfig(
-            threshold=0.95,
-            index_interval_step=1.0,
-            query_interval_step=0.2,
-            interval_duration_in_seconds=5,
-        )
-        matched_intervals = get_matched_segments(intervals_config, file_id, query_hits_intervals)
-        matched_intervals_for_queries.append(matched_intervals)
-        print('len(matched_intervals)', len(matched_intervals))
-    
-    with open("matched_intervals_for_queries.pickle", 'wb') as f:
-        pickle.dump(matched_intervals, f)
-    
-    validate_file_items = []
-    for mi in matched_intervals:
-        piracy_interval: Segment = mi[0]
-        license_interval: Segment = mi[1]
+        query_hits_intervals_file_name = os.path.join(search_val_embeddings_base_path, file_id + ".pickle")
+        with open(query_hits_intervals_file_name, 'wb') as f:
+            pickle.dump(query_hits_intervals, f)
 
-        validate_file_item = {
-            "ID-piracy": piracy_interval.file_id,
-            "SEG-piracy": piracy_interval.format_duration(),
-            "ID-license": license_interval.file_id,
-            "SEG-license": license_interval.format_duration(),
-        }
-        validate_file_items.append(validate_file_item)
-
-    df = pd.DataFrame(validate_file_items)
-    df.to_csv("matched_intervals_for_queries.csv")
 
     raise Exception
 
