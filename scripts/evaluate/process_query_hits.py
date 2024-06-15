@@ -157,7 +157,12 @@ if __name__ == '__main__':
     # query_interval_step = 0.2
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
 
-    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
+    # -------
+
+    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
+    # query_hits_files = os.listdir(query_hits_dir)
+
+    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
     query_hits_files = os.listdir(query_hits_dir)
 
     # query_interval_step = 2.4
@@ -174,9 +179,10 @@ if __name__ == '__main__':
     print("query_intervals_by_file_name", len(query_intervals_by_file_name))
 
     # for query_hits_intervals_step in [ 5, 10, 12, 13, 14, 18, 20, 25 ]:
-    for query_hits_intervals_step in [ 12, 13, 14 ]:
-        query_interval_step = round(query_hits_intervals_step * 0.2, 3)
-        assert abs(0.2 * query_hits_intervals_step - query_interval_step) < 0.001
+    for query_hits_intervals_step in [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]:
+        # query_interval_step = round(query_hits_intervals_step * 0.2, 3)
+        query_interval_step = query_hits_intervals_step
+        # assert abs(0.2 * query_hits_intervals_step - query_interval_step) < 0.001
 
         print("\n\n============================================")
         print("query_interval_step        ", query_interval_step)

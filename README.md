@@ -262,7 +262,10 @@ threshold 0.96  final_iou 0.233         f1 0.674        final_metric_value 0.346
 threshold 0.98  final_iou 0.079         f1 0.471        final_metric_value 0.135
 ```
 
-TODO Длинна интервала 10 секунд 
+# Длинна интервала 10 секунд 
+
+При увеличении длинны интервала получаем плохие значения метрик.
+Возможно, из-за того, что моделька обучалась именно на 5-секундных интервалах.
 
 Увеличение длинны интервала немного удлинняет скорость генерации фингерпринтов.
 В 2 раза.
@@ -273,3 +276,123 @@ TODO Длинна интервала 10 секунд
 
 Время поиска похожих кандидатов - около часа для валидационного датасета на 8 ядрах.
 
+
+```
+query_interval_step         1
+query_hits_intervals_step   1
+threshold 0.86  final_iou 0.053         f1 0.128        final_metric_value 0.075
+threshold 0.88  final_iou 0.088         f1 0.202        final_metric_value 0.122
+threshold 0.9   final_iou 0.17           f1 0.35         final_metric_value 0.229
+threshold 0.92  final_iou 0.234         f1 0.441        final_metric_value 0.306
+threshold 0.94  final_iou 0.268         f1 0.498        final_metric_value 0.348
+threshold 0.96  final_iou 0.304         f1 0.546        final_metric_value 0.391
+threshold 0.98  final_iou 0.256         f1 0.524        final_metric_value 0.344
+
+
+============================================
+query_interval_step         2
+query_hits_intervals_step   2
+threshold 0.86  final_iou 0.071         f1 0.162        final_metric_value 0.099
+threshold 0.88  final_iou 0.117         f1 0.253        final_metric_value 0.16
+threshold 0.9   final_iou 0.211         f1 0.412        final_metric_value 0.279
+threshold 0.92  final_iou 0.273         f1 0.498        final_metric_value 0.353
+threshold 0.94  final_iou 0.279         f1 0.511        final_metric_value 0.361
+threshold 0.96  final_iou 0.297         f1 0.544        final_metric_value 0.384
+threshold 0.98  final_iou 0.209         f1 0.493        final_metric_value 0.293
+
+
+============================================
+query_interval_step         3
+query_hits_intervals_step   3
+threshold 0.86  final_iou 0.078         f1 0.189        final_metric_value 0.111
+threshold 0.88  final_iou 0.126         f1 0.289        final_metric_value 0.176
+threshold 0.9   final_iou 0.219         f1 0.449        final_metric_value 0.294
+threshold 0.92  final_iou 0.26          f1 0.509        final_metric_value 0.344
+threshold 0.94  final_iou 0.266         f1 0.527        final_metric_value 0.353
+threshold 0.96  final_iou 0.277         f1 0.551        final_metric_value 0.368
+threshold 0.98  final_iou 0.17          f1 0.491        final_metric_value 0.253
+
+
+============================================
+query_interval_step         4
+query_hits_intervals_step   4
+threshold 0.86  final_iou 0.09          f1 0.211        final_metric_value 0.126
+threshold 0.88  final_iou 0.156         f1 0.341        final_metric_value 0.214
+threshold 0.9   final_iou 0.232         f1 0.466        final_metric_value 0.31
+threshold 0.92  final_iou 0.269         f1 0.516        final_metric_value 0.353
+threshold 0.94  final_iou 0.268         f1 0.523        final_metric_value 0.355
+threshold 0.96  final_iou 0.269         f1 0.55         final_metric_value 0.361
+threshold 0.98  final_iou 0.152         f1 0.486        final_metric_value 0.231
+
+
+============================================
+query_interval_step         5
+query_hits_intervals_step   5
+threshold 0.86  final_iou 0.098         f1 0.234        final_metric_value 0.138
+threshold 0.88  final_iou 0.16          f1 0.363        final_metric_value 0.222
+threshold 0.9   final_iou 0.235         f1 0.476        final_metric_value 0.314
+threshold 0.92  final_iou 0.252         f1 0.506        final_metric_value 0.337
+threshold 0.94  final_iou 0.269         f1 0.536        final_metric_value 0.358
+threshold 0.96  final_iou 0.269         f1 0.557        final_metric_value 0.363
+threshold 0.98  final_iou 0.11          f1 0.431        final_metric_value 0.175
+
+
+============================================
+query_interval_step         6
+query_hits_intervals_step   6
+threshold 0.86  final_iou 0.108         f1 0.256        final_metric_value 0.152
+threshold 0.88  final_iou 0.172         f1 0.387        final_metric_value 0.238
+threshold 0.9   final_iou 0.259         f1 0.513        final_metric_value 0.344
+threshold 0.92  final_iou 0.27          f1 0.534        final_metric_value 0.359
+threshold 0.94  final_iou 0.267         f1 0.539        final_metric_value 0.357
+threshold 0.96  final_iou 0.258         f1 0.554        final_metric_value 0.352
+threshold 0.98  final_iou 0.122         f1 0.457        final_metric_value 0.192
+
+
+============================================
+query_interval_step         7
+query_hits_intervals_step   7
+threshold 0.86  final_iou 0.133         f1 0.306        final_metric_value 0.185
+threshold 0.88  final_iou 0.208         f1 0.442        final_metric_value 0.283
+threshold 0.9   final_iou 0.242         f1 0.498        final_metric_value 0.326
+threshold 0.92  final_iou 0.26          f1 0.529        final_metric_value 0.349
+threshold 0.94  final_iou 0.267         f1 0.549        final_metric_value 0.359
+threshold 0.96  final_iou 0.242         f1 0.535        final_metric_value 0.333
+threshold 0.98  final_iou 0.125         f1 0.444        final_metric_value 0.195
+
+
+============================================
+query_interval_step         8
+query_hits_intervals_step   8
+threshold 0.86  final_iou 0.117         f1 0.289        final_metric_value 0.167
+threshold 0.88  final_iou 0.171         f1 0.392        final_metric_value 0.238
+threshold 0.9   final_iou 0.206         f1 0.451        final_metric_value 0.283
+threshold 0.92  final_iou 0.229         f1 0.492        final_metric_value 0.312
+threshold 0.94  final_iou 0.235         f1 0.523        final_metric_value 0.324
+threshold 0.96  final_iou 0.189         f1 0.498        final_metric_value 0.274
+threshold 0.98  final_iou 0.058         f1 0.337        final_metric_value 0.099
+
+
+============================================
+query_interval_step         9
+query_hits_intervals_step   9
+threshold 0.86  final_iou 0.14          f1 0.335        final_metric_value 0.198
+threshold 0.88  final_iou 0.197         f1 0.443        final_metric_value 0.273
+threshold 0.9   final_iou 0.23          f1 0.498        final_metric_value 0.315
+threshold 0.92  final_iou 0.236         f1 0.518        final_metric_value 0.324
+threshold 0.94  final_iou 0.226         f1 0.523        final_metric_value 0.316
+threshold 0.96  final_iou 0.179         f1 0.511        final_metric_value 0.265
+threshold 0.98  final_iou 0.065         f1 0.386        final_metric_value 0.111
+
+
+============================================
+query_interval_step         10
+query_hits_intervals_step   10
+threshold 0.86  final_iou 0.156         f1 0.373        final_metric_value 0.22
+threshold 0.88  final_iou 0.213         f1 0.478        final_metric_value 0.295
+threshold 0.9   final_iou 0.235         f1 0.506        final_metric_value 0.321
+threshold 0.92  final_iou 0.24          f1 0.52         final_metric_value 0.328
+threshold 0.94  final_iou 0.247         f1 0.541        final_metric_value 0.339
+threshold 0.96  final_iou 0.193         f1 0.525        final_metric_value 0.282
+threshold 0.98  final_iou 0.076         f1 0.391        final_metric_value 0.127
+```
