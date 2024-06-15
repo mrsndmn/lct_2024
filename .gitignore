@@ -4,5 +4,9 @@ data/**
 wandb
 __pycache__
 
+*.mp4
+*.mp3
+*.wav
+
 *.ipynb
 jupyter
