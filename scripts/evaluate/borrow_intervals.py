@@ -97,6 +97,5 @@ if __name__ == '__main__':
         with open(query_hits_intervals_file_name, 'wb') as f:
             pickle.dump(query_hits_intervals, f)
 
-
     raise Exception
 

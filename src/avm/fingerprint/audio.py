@@ -7,16 +7,6 @@ import torchaudio
 import torch.nn.functional as F
 import numpy as np
 
-@dataclass
-class Segment:
-    # Сегмент для одного аудио/видео -- непрерывный участок
-    file_id: str
-    start_second: float
-    end_second: float
-
-    def format_duration(self):
-        return f"{int(self.start_second)}-{int(self.end_second)}"
-
 
 @dataclass
 class AudioFingerPrinterConfig:

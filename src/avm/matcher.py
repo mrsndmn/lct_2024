@@ -15,9 +15,12 @@ class Segment:
     start_second: float
     end_second: float
 
-    def format_duration(self):
+    def format_string(self):
         return f"{int(self.start_second)}-{int(self.end_second)}"
     
+    def duration(self):
+        return self.end_second - self.start_second
+
     def is_valid(self):
         assert self.start_second < self.end_second
 
@@ -42,7 +45,7 @@ class AVMatcherConfig:
     index_interval_step:float = field(default=1.0)
 
     # Мерджим сегменты, если у них разница во времени меньше X секунд
-    merge_segments_with_diff_seconds:int = field(default=3)
+    merge_segments_with_diff_seconds:float = field(default=5)
     # Удаляем сегменты, которые длятся менее X секунд
     segment_min_duration:int = field(default=10)
     # Удаляем сматченные эмбэддинги, которые отличаются больше, чем на
@@ -102,25 +105,37 @@ class AVMatcher():
         return audio_full_path
 
 
-def _merge_intersectioned_segments(config, input_segments: List[MatchedSegmentsPair]) -> List[MatchedSegmentsPair]:
+def _merge_intersectioned_segments(config, input_segments: List[MatchedSegmentsPair], debug=False) -> List[MatchedSegmentsPair]:
     active_segments: MatchedSegmentsPair = deepcopy(input_segments[0])
     merged_segments = [ active_segments ]
     for next_segments in input_segments[1:]:
-
+        print("cond1 current_segment diff is ok", next_segments.current_segment.start_second - active_segments.current_segment.end_second)
+        print("cond2 file_id match", next_segments.licensed_segment.file_id == active_segments.licensed_segment.file_id)
+        print("cond3 licensed_segment diff is ok", next_segments.licensed_segment.start_second - active_segments.licensed_segment.end_second)
         if next_segments.current_segment.start_second - active_segments.current_segment.end_second < config.merge_segments_with_diff_seconds:
             if next_segments.licensed_segment.file_id == active_segments.licensed_segment.file_id:
-                if next_segments.licensed_segment.start_second - active_segments.current_segment.end_second < config.merge_segments_with_diff_seconds:
+                if next_segments.licensed_segment.start_second - active_segments.licensed_segment.end_second < config.merge_segments_with_diff_seconds:
                     # Объединяем пересекающиеся сегменты
+                    # active_segments_clone = deepcopy(active_segments)
+
                     active_segments.current_segment.end_second = next_segments.current_segment.end_second
-                    active_segments.licensed_segment.end_second = next_segments.licensed_segment.end_second
+                    active_segments.licensed_segment.end_second = max(next_segments.licensed_segment.end_second, active_segments.licensed_segment.end_second)
+                    active_segments.current_segment.is_valid()
+                    active_segments.licensed_segment.is_valid()
+
+                    # active_segments.current_segment = active_segments_clone.current_segment
+                    # active_segments.licensed_segment = active_segments_clone.licensed_segment
+                    if debug:
+                        print("updated active_segments", active_segments)
                     continue
 
-        merged_segments.append(next_segments)
+        # print("appended active_segments", active_segments)
         active_segments = next_segments
+        merged_segments.append(active_segments)
 
     return merged_segments
 
-def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[MatchedSegmentsPair]:
+def get_matched_segments(config, query_file_id, query_hits_intervals, debug=False, expected_match_debug=None) -> List[MatchedSegmentsPair]:
     # todo в теории нужный интервал может быть не самым ближайшим соседом
     first_only_hits = [ h[0] for h in query_hits_intervals ]
 
@@ -152,11 +167,28 @@ def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[Ma
         matched_segments = MatchedSegmentsPair(query_segment, hit_segment)
         high_score_matched_segments.append(matched_segments)
 
+    if debug:
+        print("high_score_matched_segments", len(high_score_matched_segments))
     if len(high_score_matched_segments) == 0:
         return []
 
     # если сегменты одного видео близко друг к другу, то можно их смерджить
-    merged_matched_segments = _merge_intersectioned_segments(config, high_score_matched_segments)
+    merged_matched_segments = _merge_intersectioned_segments(
+        config, high_score_matched_segments,
+        debug=debug
+    )
+    if debug:
+        print("merged_matched_segments", len(merged_matched_segments))
+        if expected_match_debug is not None:
+            expected_match_debug_mips = []
+            for mip in merged_matched_segments:
+                if mip.licensed_segment.file_id == expected_match_debug:
+                    expected_match_debug_mips.append(mip)
+                else:
+                    expected_match_debug_mips.append(None)
+
+            # breakpoint()
+            print("expected_match_debug_mips", expected_match_debug_mips)
 
     # если нашли одинокий интервал, то его можно отфильтровать, тк минимум 10 секунд должно матчиться
     last_position_by_file_id = dict()
@@ -167,11 +199,14 @@ def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[Ma
         if last_end_second is None:
             last_position_by_file_id[matched_file_id] = segments_pair.current_segment.end_second
         else:
-            if segments_pair.licensed_segment.end_second - last_end_second < config.interval_duration_in_seconds:
+            if segments_pair.current_segment.end_second - last_end_second < config.interval_duration_in_seconds:
                 while len(filtered_segments) > 0 and filtered_segments[-1].licensed_segment.file_id != matched_file_id:
                     filtered_segments.pop(-1)
 
         filtered_segments.append(segments_pair)
+
+    if debug:
+        print("filtered_segments", len(filtered_segments))
 
     if len(filtered_segments) == 0:
         return []
@@ -179,6 +214,8 @@ def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[Ma
     # после удаления одиночных сегментов могли образоваться
     # новые возможности для мерджа - см тест test_get_matched_segments_full_with_impostor
     merged_again_segments = _merge_intersectioned_segments(config, filtered_segments)
+    if debug:
+        print("merged_again_segments", len(merged_again_segments))
 
     filtered_segments = []
     for segments_pair in merged_again_segments:
@@ -186,13 +223,20 @@ def get_matched_segments(config, query_file_id, query_hits_intervals) -> List[Ma
             continue
         filtered_segments.append(segments_pair)
 
+    merged_again_again_segments = _merge_intersectioned_segments(config, filtered_segments)
+    if debug:
+        print("merged_again_again_segments", len(merged_again_again_segments))
+
+
     # todo validate segments
-    # for segments_pair in merged_again_segments:
-    #     segments_pair.current_segment.is_valid()
-    #     segments_pair.licensed_segment.is_valid()
+    for segments_pair in merged_again_again_segments:
+        segments_pair.current_segment.is_valid()
+        segments_pair.licensed_segment.is_valid()
+    
+    if debug:
+        print("filtered_segments", len(merged_again_again_segments))
 
-
-    return filtered_segments
+    return merged_again_again_segments
 
 
 def dummy_get_matched_intervals():

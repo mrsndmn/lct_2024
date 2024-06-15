@@ -52,8 +52,10 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     target_dict = target.groupby(['ID-piracy', 'ID-license']).count().to_dict()['SEG-piracy']
 
     submit_dict = submit.groupby(['ID-piracy', 'ID-license']).count().to_dict()['SEG-piracy']
-    print("len(orig_dict)", len(target_dict))
-    print("len(target_dict)", len(submit_dict))
+    print('len(target)\t', len(target))
+    print('len(submit)\t', len(submit))
+    print("len(orig_dict)\t", len(target_dict))
+    print("len(target_dict)\t", len(submit_dict))
 
     """# Подсчет FP, TP, FN"""
 
@@ -64,6 +66,8 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     for ids, count in target_dict.items():
         if ids not in submit_dict:
             fn += count # модель не нашла что то из оригинальной таблицы
+            print("false negative:", ids)
+            # breakpoint()
         elif submit_dict[ids] > count:
             fp += submit_dict[ids] - count     # модель нашла больше совпадений чем в оригинальной таблице
             tp += min(submit_dict[ids], count) # тогда для истинных совпадений совпадений берем наименьшее количество
@@ -78,7 +82,7 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     for ids, count in submit_dict.items():
         if ids not in target_dict:
             fp += count # модель нашла то, чего не было в оригинальной таблице
-            print("false_positive_ids", ids)
+            # print("false_positive_ids", ids)
 
     print("fp, fn, tp", fp, fn, tp)
 
@@ -149,9 +153,9 @@ if __name__ == '__main__':
             license_interval: Segment = mi.licensed_segment
             validate_file_item = {
                 "ID-piracy": piracy_interval.file_id,
-                "SEG-piracy": piracy_interval.format_duration(),
+                "SEG-piracy": piracy_interval.format_string(),
                 "ID-license": license_interval.file_id,
-                "SEG-license": license_interval.format_duration(),
+                "SEG-license": license_interval.format_string(),
             }
             validate_file_items.append(validate_file_item)
 
