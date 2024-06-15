@@ -30,15 +30,10 @@ def f1(tp, fp, fn):
     precision = tp / (tp + fp + 1e-6)
     recall = tp / (tp + fn + 1e-6)
 
-    print(f'Precision = {precision}')
-    print(f'Recall = {recall}')
-
     return 2 * (precision * recall) / (precision + recall + 1e-6)
 
 def final_metric(tp, fp, fn, final_iou):
     f = f1(tp, fp, fn)
-
-    print(f'IOU = {final_iou}')
 
     return 2 * (final_iou * f) / (final_iou + f + 1e-6)
 
@@ -48,6 +43,18 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
     target['SEG-piracy'] = target['segment']
     target['ID-license'] = target['ID_license'].map(lambda x: x.removesuffix(".mp4"))
     target['SEG-license'] = target['segment.1']
+
+    target['SEG-piracy-start'] = target['SEG-piracy'].map(lambda x: int(x.split("-")[0]))
+    target['SEG-piracy-end'] = target['SEG-piracy'].map(lambda x: int(x.split("-")[1]))
+    target['SEG-license-end'] = target['SEG-license'].map(lambda x: int(x.split("-")[1]))
+    target['SEG-license-start'] = target['SEG-license'].map(lambda x: int(x.split("-")[0]))    
+
+    created_df['SEG-piracy-start'] = created_df['SEG-piracy'].map(lambda x: int(x.split("-")[0]))
+    created_df['SEG-piracy-end'] = created_df['SEG-piracy'].map(lambda x: int(x.split("-")[1]))
+    created_df['SEG-license-end'] = created_df['SEG-license'].map(lambda x: int(x.split("-")[1]))
+    created_df['SEG-license-start'] = created_df['SEG-license'].map(lambda x: int(x.split("-")[0]))
+    #  (created_df['SEG-piracy-end'] - created_df['SEG-piracy-start']).describe()
+    #  (created_df['SEG-license-end'] - created_df['SEG-license-start']).describe()
 
     target_dict = target.groupby(['ID-piracy', 'ID-license']).count().to_dict()['SEG-piracy']
 
@@ -110,7 +117,9 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
 
         ious.append(max_iou)
 
-    sorted(ious, reverse=True)
+    print("sorted_ious", sorted(ious, reverse=True))
+    ious_no_zeros = [ iou for iou in ious if iou > 0.05]
+    print("ious_no_zeros", sum(ious_no_zeros) / len(ious_no_zeros))
 
     print(f'F1 = {f1(tp, fp, fn)}')
 
@@ -122,6 +131,7 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame):
 if __name__ == '__main__':
 
     query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
+    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
     query_hits_files = os.listdir(query_hits_dir)
 
     matched_intervals_for_queries = []
@@ -132,6 +142,7 @@ if __name__ == '__main__':
         with open(query_hits_full_file_path, 'rb') as f:
             query_hits_intervals = pickle.load(f)
 
+        # query_embeddings = query_embeddings[::2]
         # print(len(query_hits_intervals))
 
         intervals_config = IntervalsConfig(

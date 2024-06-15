@@ -81,7 +81,7 @@ if __name__ == '__main__':
     query_embeddings_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_val_embeddings/'
     query_embeddings_files = sorted(os.listdir(query_embeddings_dir))
 
-    search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
+    search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
     os.makedirs(search_val_embeddings_base_path, exist_ok=True)
     
     for query_embeddings_file in tqdm(query_embeddings_files):
@@ -89,7 +89,7 @@ if __name__ == '__main__':
         file_id = query_embeddings_file.removesuffix(".pt")
         query_embeddings = torch.load(os.path.join(query_embeddings_dir, query_embeddings_file))
 
-        query_embeddings = query_embeddings[::2]
+        query_embeddings = query_embeddings
 
         query_hits_intervals = audio_index.search_sequential(query_embeddings.numpy(), limit_per_vector=1)
 

@@ -119,7 +119,8 @@ def _merge_intersectioned_segments(config, input_segments: List[MatchedSegmentsP
                     # active_segments_clone = deepcopy(active_segments)
 
                     active_segments.current_segment.end_second = next_segments.current_segment.end_second
-                    active_segments.licensed_segment.end_second = max(next_segments.licensed_segment.end_second, active_segments.licensed_segment.end_second)
+                    active_segments.licensed_segment.end_second = active_segments.licensed_segment.start_second + active_segments.current_segment.duration()
+                    # active_segments.licensed_segment.end_second = max(next_segments.licensed_segment.end_second, active_segments.licensed_segment.end_second)
                     active_segments.current_segment.is_valid()
                     active_segments.licensed_segment.is_valid()
 
