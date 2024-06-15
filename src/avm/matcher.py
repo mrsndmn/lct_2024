@@ -45,7 +45,7 @@ class AVMatcherConfig:
     index_interval_step:float = field(default=1.0)
 
     # Мерджим сегменты, если у них разница во времени меньше X секунд
-    merge_segments_with_diff_seconds:float = field(default=5)
+    merge_segments_with_diff_seconds:float = field(default=10.)
     # Удаляем сегменты, которые длятся менее X секунд
     segment_min_duration:int = field(default=10)
     # Удаляем сматченные эмбэддинги, которые отличаются больше, чем на
@@ -109,9 +109,9 @@ def _merge_intersectioned_segments(config, input_segments: List[MatchedSegmentsP
     active_segments: MatchedSegmentsPair = deepcopy(input_segments[0])
     merged_segments = [ active_segments ]
     for next_segments in input_segments[1:]:
-        print("cond1 current_segment diff is ok", next_segments.current_segment.start_second - active_segments.current_segment.end_second)
-        print("cond2 file_id match", next_segments.licensed_segment.file_id == active_segments.licensed_segment.file_id)
-        print("cond3 licensed_segment diff is ok", next_segments.licensed_segment.start_second - active_segments.licensed_segment.end_second)
+        # print("cond1 current_segment diff is ok", next_segments.current_segment.start_second - active_segments.current_segment.end_second)
+        # print("cond2 file_id match", next_segments.licensed_segment.file_id == active_segments.licensed_segment.file_id)
+        # print("cond3 licensed_segment diff is ok", next_segments.licensed_segment.start_second - active_segments.licensed_segment.end_second)
         if next_segments.current_segment.start_second - active_segments.current_segment.end_second < config.merge_segments_with_diff_seconds:
             if next_segments.licensed_segment.file_id == active_segments.licensed_segment.file_id:
                 if next_segments.licensed_segment.start_second - active_segments.licensed_segment.end_second < config.merge_segments_with_diff_seconds:
@@ -169,6 +169,7 @@ def get_matched_segments(config, query_file_id, query_hits_intervals, debug=Fals
 
     if debug:
         print("high_score_matched_segments", len(high_score_matched_segments))
+
     if len(high_score_matched_segments) == 0:
         return []
 
@@ -222,6 +223,9 @@ def get_matched_segments(config, query_file_id, query_hits_intervals, debug=Fals
         if segments_pair.current_segment.end_second - segments_pair.current_segment.start_second < config.segment_min_duration:
             continue
         filtered_segments.append(segments_pair)
+
+    if len(filtered_segments) == 0:
+        return []
 
     merged_again_again_segments = _merge_intersectioned_segments(config, filtered_segments)
     if debug:

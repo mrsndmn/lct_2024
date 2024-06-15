@@ -135,9 +135,10 @@ if __name__ == '__main__':
         # print(len(query_hits_intervals))
 
         intervals_config = IntervalsConfig(
-            threshold=0.7,
+            threshold=0.93,
             index_interval_step=1.0,
             query_interval_step=1.0,
+            merge_segments_with_diff_seconds=10.0,
             interval_duration_in_seconds=5,
             segment_min_duration=20,
         )
