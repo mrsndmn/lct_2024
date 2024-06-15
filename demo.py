@@ -5,7 +5,19 @@ from typing import List
 from dataclasses import dataclass
 import time
 
-uploaded_file = st.file_uploader("Select video")
+from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
+from avm.search.audio import AudioIndex
+from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
+from avm.models.audio import get_default_audio_model
+
+import torch
+
+# uploaded_file = st.file_uploader("Select video")
+uploaded_file = './data/rutube/videos/test_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+
+MOCKED = False
+base_videos_path = 'data/rutube/videos/test_videos'
+
 
 @dataclass
 class MatchesByFile:
@@ -49,19 +61,54 @@ def processing_mock(legal_file_id, pirate_file_id) -> List[MatchedSegmentsPair]:
         ),
     ]
 
+@st.cache_resource
+def get_matcher():
+    matcher_config = AVMatcherConfig(
+        query_interval_step=1.0,
+    )
+    audio_index = AudioIndex(
+        index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
+        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+    )
+    
+    audio_validation_figerprinter_config = AudioFingerPrinterConfig(
+        interval_step=matcher_config.query_interval_step,
+        batch_size=10,
+    )
+
+    model, feature_extractor = get_default_audio_model()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model.eval()
+    model.to(device)
+
+    audio_validation_fingerprinter = AudioFingerPrinter(
+        audio_validation_figerprinter_config,
+        model=model,
+        feature_extractor=feature_extractor,
+    )
+
+    avmatcher = AVMatcher(
+        matcher_config,
+        audio_index=audio_index,
+        audio_fingerprinter=audio_validation_fingerprinter,
+    )
+
+    return avmatcher
+
 
 def render_file_match(mbf: MatchesByFile):
     container = st.container(border=True)
     container.write(f"Matches for: {mbf.file_id}")
-    
-    
-    with open(mbf.file_id, 'rb') as f:
+
+    matched_video_file_path = os.path.join(base_videos_path, mbf.file_id + ".mp4")
+
+    with open(matched_video_file_path, 'rb') as f:
         match_bytes = f.read()
 
     selected = container.selectbox(
-    label="Matches:",
-    options=mbf.matches,
-    format_func=lambda o: f"source({o.current_segment.start_second}-{o.current_segment.end_second}) match({o.licensed_segment.start_second}-{o.licensed_segment.end_second})"
+        label="Matches:",
+        options=mbf.matches,
+        format_func=lambda o: f"source({o.current_segment.format_string()}) match({o.licensed_segment.format_string()})"
     )
 
     col1, col2 = container.columns(2)
@@ -72,10 +119,21 @@ def render_file_match(mbf: MatchesByFile):
     col2.video(match_bytes, start_time=selected.licensed_segment.start_second, end_time=selected.licensed_segment.end_second)
 
 
-
-
 if uploaded_file is not None:
-    matches = processing_mock("demo/si2m5i2ne4b8oih1mjcyo2lg62ujh3si.mp4", "demo/ffsfsdfsdf.mp4")
+
+    print("uploaded_file", uploaded_file)
+
+    if MOCKED:
+        legal_video = 'ded3d179001b3f679a0101be95405d2c.mp4'
+        pirate_videp = 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+
+        matches = processing_mock(
+            os.path.join(base_videos_path, legal_video),
+            os.path.join(base_videos_path, pirate_videp),
+        )
+    else:
+        avmatcher = get_matcher()
+        matches = avmatcher.find_matches(uploaded_file, cleanup=False)
 
     matches_by_file = {}
 
