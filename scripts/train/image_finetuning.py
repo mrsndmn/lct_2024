@@ -136,22 +136,18 @@ if __name__ == '__main__':
 
     config = TrainingConfig()
 
-    from DPF.configs import FilesDatasetConfig
-    from DPF.dataset_reader import DatasetReader
-    from DPF.pipelines import FilterPipeline
-    from DPF.filters.images.info_filter import ImageInfoFilter
-    from DPF.filters.images.hash_filters import PHashFilter
-    from DPF.transforms import ImageResizeTransforms, Resizer, ResizerModes
-
-    reader = DatasetReader()
-    config = FilesDatasetConfig.from_path_and_columns(
-        "data/rutube/videos/test_videos",
-        video_path_col='file_id',
+    import torchvision
+    video_data = torchvision.io.read_video(
+        "data/rutube/videos/test_videos/ded3d179001b3f679a0101be95405d2c.mp4",
+        output_format='TCHW',
+        start_pts=0.0,
+        end_pts=1.0,
+        pts_unit='sec',
     )
-    processor = reader.read_from_config(config, workers=4)
+    print(video_data)
 
-    transforms = ImageResizeTransforms(Resizer(ResizerModes.MIN_SIZE, size=768))
-    processor.apply_transform(transforms)
+
+    raise Exception
 
     with wandb.init(project="lct-avm-image") as metric_logger:
         train(

@@ -97,10 +97,13 @@ if __name__ == '__main__':
 
         search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
         os.makedirs(search_val_embeddings_base_path, exist_ok=True)
+        existing_search_val_embeddings = set(os.listdir(search_val_embeddings_base_path))
     
     for query_embeddings_file in tqdm(query_embeddings_files):
         query_embeddings_file: str
         file_id = query_embeddings_file.removesuffix(".pt")
+        if file_id + ".pickle" in existing_search_val_embeddings:
+            continue
         query_embeddings = torch.load(os.path.join(query_embeddings_dir, query_embeddings_file))
 
         query_embeddings = query_embeddings
