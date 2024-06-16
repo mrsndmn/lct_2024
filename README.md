@@ -25,7 +25,6 @@
 
 # Процесс предобработки видео/аудио
 [Скрипт для нормализации видео](https://github.com/mrsndmn/lct_2024/blob/495b5aa12ed23b07e0e818dbe46e7640ccf06946/scripts/normalization/normalize_video_ffmpeg.py)
-[Нормализация аудио](https://github.com/mrsndmn/lct_2024/blob/4a70142f35d19a7eea37b91cddfaaeed08a6b457/scripts/data/extract_audio_from_video.py#L37)
 
 Алгоритм нормализации видео:
 1. Фильтруем видео с длительностью <60 секунд
@@ -33,6 +32,9 @@
 3. Приводим к разрешению 640*310
 4. Приводим насыщенность цветов к 0
 5. Обрезаем черные рамки при их наличии
+
+
+[Нормализация аудио](https://github.com/mrsndmn/lct_2024/blob/4a70142f35d19a7eea37b91cddfaaeed08a6b457/scripts/data/extract_audio_from_video.py#L37)
 
 Алгоритм нормализации аудио:
 1. Устанавливаем кодек pcm_s16le
