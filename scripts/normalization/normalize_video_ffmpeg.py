@@ -106,9 +106,9 @@ def main():
                         default=60)
 
     parser.add_argument("--source", help="Path to dir with source videos", type=str,
-                        default="ex_videos/videos/")
+                        default="videos/")
     parser.add_argument("--target", help="Path to dir where you want to place result", type=str,
-                        default="ex_videos/normalisation_result/")
+                        default="normalisation_result/")
 
     args = parser.parse_args()
 
