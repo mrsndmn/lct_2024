@@ -56,5 +56,6 @@ def test_qdrand_normalized_embeddings_diatance(distance_metric, embedding_size):
 
     # print("start timeit")
     num_repeats = 100
-    print(f"metric={distance_metric}\ttime=", timeit.timeit("index_lookup()", globals=locals(), number=num_repeats) / num_repeats)
+    time_duration = timeit.timeit("index_lookup()", globals=locals(), number=num_repeats) / num_repeats
+    print(f"metric={distance_metric}\tembedding_size={embedding_size}\ttime={time_duration:.3f}", )
 

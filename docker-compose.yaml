@@ -14,3 +14,9 @@ services:
     volumes:
       - ./qdrant_data:/qdrant/storage
 
+  avm-demo:
+    image: amv-demo
+      build:
+        context: .
+        dockerfile: dockerfiles/demo/Dockerfile
+
