@@ -225,4 +225,5 @@ yarl==1.9.4
 yt-dlp==2024.5.27
 zipp==3.19.1
 
+ffmpeg-python
 efficientnet_pytorch

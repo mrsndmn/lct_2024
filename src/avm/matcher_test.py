@@ -40,7 +40,7 @@ def test_matcher_end_to_end():
         audio_fingerprinter=audio_validation_fingerprinter,
     )
 
-    test_video_path = 'data/rutube/videos/test_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+    test_video_path = 'data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
     result_matches = avmatcher.find_matches(test_video_path, cleanup=False)
 
     assert len(result_matches) == 1

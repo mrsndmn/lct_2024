@@ -13,10 +13,10 @@ from avm.models.audio import get_default_audio_model
 import torch
 
 # uploaded_file = st.file_uploader("Select video")
-uploaded_file = './data/rutube/videos/test_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+uploaded_file = './data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
 
 MOCKED = False
-base_videos_path = 'data/rutube/videos/test_videos'
+base_videos_path = 'data/rutube/videos/pytest_videos'
 
 
 @dataclass

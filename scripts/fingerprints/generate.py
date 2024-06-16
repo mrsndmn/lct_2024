@@ -24,6 +24,23 @@ class FingerprintValAudios():
     model_name = "UniSpeechSatForXVector"
     model_from_pretrained = 'data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97'
 
+class FingerprintTestAudios():
+    embeddings_out_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_test_embeddings'
+    sampling_rate = 16000
+    base_audio_audio_path = 'data/rutube/test/compressed_test_audios/'
+    dataset_path = 'data/rutube/test/compressed_test_audios.dataset'
+    few_dataset_samples = None
+
+    interval_duration_in_seconds = 5
+    interval_step = 2.8
+    batch_size = 128
+    embeddings_normalization = True
+    audio_normalization = True
+
+    model_name = "UniSpeechSatForXVector"
+    model_from_pretrained = 'data/models/UniSpeechSatForXVector_mini_finetuned/electric-yogurt-97'
+
+
 class FingerprintIndexAudios():
     embeddings_out_dir = 'data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings'
     sampling_rate = 16000
@@ -147,7 +164,11 @@ if __name__ == '__main__':
     # generate_fingerprints(index_config)
 
     # val_config = FingerprintValAudios()
-    val_config = FingerprintValAudios10s()
-    generate_fingerprints(val_config)
+    # val_config = FingerprintValAudios10s()
+    # generate_fingerprints(val_config)
+
+    test_config = FingerprintTestAudios()
+    generate_fingerprints(test_config)
+
 
     raise Exception

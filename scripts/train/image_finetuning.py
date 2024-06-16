@@ -1,10 +1,9 @@
+import torchvision
 import random
-import numpy as np
-import soundfile as sf
-
 import torch
-import torch.nn as nn
 from torch.optim import Adam
+
+from typing import List
 
 from torch.utils.data import DataLoader
 
@@ -16,10 +15,10 @@ from datasets import Dataset
 from tqdm.auto import tqdm
 import wandb
 from wandb import sdk as wandb_sdk
-
+from torchvision.transforms import v2
 import os
 
-from avm.models.image import get_default_image_model
+from avm.models.image import get_default_image_model_for_x_vector
 
 from scripts.train.metric_learning import clip_loss
 
@@ -27,16 +26,67 @@ from scripts.train.metric_learning import clip_loss
 class TrainingConfig():
     # Head Training
     freeze_skeleton = True
-    batch_size = 10
-    learning_rate = 1e-4
+    batch_size = 2
+    learning_rate = 3e-4
+
+    videos_dir = "data/rutube/videos/pytest_videos_normalized/"
 
     model_checkpoints_path = 'data/models/image/efficient-net-b0'
-    save_and_evaluate_model_every_epoch = 1
+    save_and_evaluate_model_every_epoch = 100
 
     num_epochs = 30
     multiply_train_epoch_data = 10
 
     few_dataset_samples = None
+
+class RandomVideoCoupleFramesDataset():
+    def __init__(self, 
+                 videos_dir: str,
+                 max_frames_distance = 3,
+                ):
+        
+        base_video_path = videos_dir
+        video_files = [ os.path.join(base_video_path, file_name) for file_name in os.listdir(base_video_path) ]
+
+        self.video_files = video_files
+        self.max_frames_distance    = max_frames_distance
+
+        self.transforms = v2.Compose([
+            v2.ToDtype(torch.float32, scale=True),
+            v2.RandomApply([v2.RandomRotation(5)]),
+        ])
+
+        return
+
+    def __len__(self):
+        return len(self.video_files)
+
+    def __getitem__(self, i):
+        video_file = self.video_files[i]
+
+        # todo optimize and read only
+        # part of video
+        video_info = torchvision.io.read_video(
+            video_file,
+            output_format='TCHW',
+            pts_unit='sec',
+        )
+        video_frames = video_info[0]
+
+        frames_num = video_frames.shape[0]
+        frames_distance = random.randint(1, self.max_frames_distance)
+        first_frame_i = random.randint(0, frames_num - frames_distance)
+
+        first_frame = video_frames[first_frame_i:first_frame_i+1]
+        second_frame_i = first_frame_i+frames_distance
+        second_frame = video_frames[second_frame_i:second_frame_i+1]
+
+        first_frame  = self.transforms(first_frame)
+        second_frame = self.transforms(second_frame)
+
+        return {
+            "frames": torch.cat([first_frame, second_frame], dim=0),
+        }
 
 
 def freeze_model(model):
@@ -48,13 +98,7 @@ def freeze_model(model):
 
 def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     # Dataloaders
-    training_dataset = Dataset.load_from_disk(config.training_dataset_path)
-
-    existing_audio_files = set(os.listdir(config.audio_base_path))
-
-    training_dataset = training_dataset.filter(lambda x: x['file_name'] in existing_audio_files)
-    training_dataset = training_dataset.map(lambda x: {"audio": config.audio_base_path + '/' + x['file_name']})
-    training_dataset = training_dataset.remove_columns([x for x in training_dataset.column_names if x != 'audio'])
+    training_dataset = RandomVideoCoupleFramesDataset(config.videos_dir)
 
     if config.few_dataset_samples is not None:
         training_dataset = training_dataset.select(range(config.few_dataset_samples))
@@ -72,7 +116,7 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     )
 
     # Model and optimizer
-    model = get_default_image_model()
+    model = get_default_image_model_for_x_vector()
     if config.freeze_skeleton:
         freeze_model(model.backbone)
 
@@ -89,15 +133,18 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
         for dataloader_multiplicator in range(config.multiply_train_epoch_data):
             pbar = tqdm(training_dataloader)
             for batch in pbar:
-
-                model_output = model(batch['input_values'])
-                print("model_output", model_output.shape)
+                
+                frames_batch = batch['frames'].flatten(0, 1) # [ bs * 2, C, H W ]
+                frames_batch = frames_batch.to(device)
+                model_output = model(frames_batch)
+                # print("model_output", model_output.shape)
 
                 model_output = model_output / (model_output.norm(dim=-1, keepdim=True) + 1e-6)
                 if model_output.isnan().any().item():
                     raise Exception("model_output is nan!")
 
-                x_vectors_1, x_vectors_2 = torch.chunk(model_output, 2, dim=0)
+                model_output = model_output.unflatten(0, [-1, 2]) # [ bs, 2, C, H, W ]
+                x_vectors_1, x_vectors_2 = model_output[:, 0], model_output[:, 1]
 
                 logit_scale = model.logit_scale.exp()
                 if logit_scale.isnan().item():
@@ -136,21 +183,8 @@ if __name__ == '__main__':
 
     config = TrainingConfig()
 
-    import torchvision
-    video_data = torchvision.io.read_video(
-        "data/rutube/videos/test_videos/ded3d179001b3f679a0101be95405d2c.mp4",
-        output_format='TCHW',
-        start_pts=0.0,
-        end_pts=1.0,
-        pts_unit='sec',
-    )
-    print(video_data)
-
-
-    raise Exception
-
     with wandb.init(project="lct-avm-image") as metric_logger:
         train(
-            config=config,
+             config=config,
             metric_logger=metric_logger,
         )

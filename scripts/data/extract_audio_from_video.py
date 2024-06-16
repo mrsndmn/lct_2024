@@ -2,6 +2,8 @@ import os
 import sys
 from tqdm.auto import tqdm
 
+# Для тестовых данных сприпт отработал за 2 минуты
+# ~/miniconda3/envs/lct/bin/python scripts/data/extract_audio_from_video.py /Users/d.tarasov/Downloads/14.RUTUBE/compressed_test /Users/d.tarasov/Downloads/14.RUTUBE/compressed_test_audios
 
 # Для индекса сприпт отработал за 4 минуты
 # ~/miniconda3/envs/lct/bin/python scripts/data/extract_audio_from_video.py /Users/d.tarasov/Downloads/14.RUTUBE/compressed_index /Users/d.tarasov/Downloads/14.RUTUBE/compressed_index_audios

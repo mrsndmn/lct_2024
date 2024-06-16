@@ -61,7 +61,7 @@ class AudioFingerPrinter():
             inputs_shifted.append(current_interval)
 
         inputs_shifted = torch.cat(inputs_shifted, dim=0)
-        print("inputs_shifted", inputs_shifted.shape)
+        # print("inputs_shifted", inputs_shifted.shape)
 
         batch_size = self.config.batch_size
         with torch.no_grad():
