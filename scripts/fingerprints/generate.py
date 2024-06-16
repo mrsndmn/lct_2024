@@ -159,18 +159,16 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    index_config = FingerprintIndexAudios()
-    # index_config = FingerprintIndexAudios10s()
-    generate_fingerprints(index_config)
+    # index_config = FingerprintIndexAudios()
+    # generate_fingerprints(index_config)
 
-    val_config = FingerprintValAudios()
-    # val_config = FingerprintValAudios10s()
-    generate_fingerprints(val_config)
+    # val_config = FingerprintValAudios()
+    # generate_fingerprints(val_config)
 
     test_config = FingerprintTestAudios()
-    generate_fingerprints(val_config)
+    generate_fingerprints(test_config)
 
-    # embeddings_out_dir = index_config.embeddings_out_dir
+    # embeddings_out_dir = test_config.embeddings_out_dir
     # test_files = os.listdir(embeddings_out_dir)
     
     # for test_file in test_files:
@@ -181,4 +179,4 @@ if __name__ == '__main__':
     # generate_fingerprints(test_config)
 
 
-    raise Exception
+    # raise Exception

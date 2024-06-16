@@ -2,6 +2,7 @@ import os
 import torch
 from dataclasses import dataclass, field
 from copy import deepcopy
+import numpy as np
 
 from typing import List
 
@@ -61,6 +62,8 @@ class AVMatcherConfig:
     # заданнный трешолд
     threshold: float = field(default=0.93)
 
+    enable_video_matching: bool = field(default=False)
+
 
 class AVMatcher():
     """Audio and Video Matcher"""
@@ -97,85 +100,118 @@ class AVMatcher():
         print("audio file extracted", audio_file)
 
         audio_matched_intervals = self.find_audio_only_matches(audio_file, file_id=file_id)
+        
+        result_mathing_intervals = audio_matched_intervals
 
         # Video Matching for trimming audio intervals
-        normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
+        if self.config.enable_video_matching:
+            normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
 
-        trimmed_matched_intervals = self.trim_intervals_with_visual_modality(
-            audio_matched_intervals, normalized_video_file
-        )
+            video_fingerprints = self.video_fingerprinter.fingerprint_from_file(normalized_video_file)
+            video_fingerprints = video_fingerprints.cpu().numpy()
+
+            result_mathing_intervals = self.trim_intervals_with_visual_modality(
+                audio_matched_intervals, video_fingerprints
+            )
+
+            if cleanup:
+                os.remove(normalized_video_file)
 
         if cleanup:
             os.remove(audio_file)
-            os.remove(normalized_video_file)
 
-        return trimmed_matched_intervals
+        return result_mathing_intervals
     
+    # Метод уточняет границы предсказанного интервала
+    # с помощью модальности видео. Может смещать и ли расширять границы
+    # интервалов.
+    # 
+    # 1) Сначала выравниваем время интервала для исходного и лицензионного файла
+    # 2) Вычисляем исходя из длительности интервала новое окончание
+    # 3) Проверяем, можем ли мы увеличить длительность интервала?
     def trim_intervals_with_visual_modality(
             self,
             audio_matched_intervals: List[MatchedSegmentsPair],
-            normalized_video_file: str,
+            video_fingerprint: np.ndarray,
+            trim_seconds=2
             ) -> List[MatchedSegmentsPair]:
-
-        video_fingerprints = self.video_fingerprinter.fingerprint_from_file(normalized_video_file)
-        video_fingerprints = video_fingerprints.cpu().numpy()
 
         # todo вообщег говоря, для тимминга и валидации,
         # кажется, уже не нужен векторный поиск
 
-        trimmed_matched_intervals = audio_matched_intervals
-        # trimmed_matched_intervals: List[MatchedSegmentsPair] = []
+        # trimmed_matched_intervals = audio_matched_intervals
+        trimmed_matched_intervals: List[MatchedSegmentsPair] = []
         for interval in audio_matched_intervals:
+            interval = deepcopy(interval)
+
             # trim start interval
             license_file_id = interval.licensed_segment.file_id
             license_start_second = int(interval.licensed_segment.start_second)
             license_end_second = interval.licensed_segment.start_second
 
             start_second = int(interval.current_segment.start_second)
-            start_frame_embedding = video_fingerprints[start_second]
+            end_second = int(interval.current_segment.end_second)
 
-            must_search_condition = [
-                qdrant_models.FieldCondition(
-                    key="file_id",
-                    match=qdrant_models.MatchValue(value=license_file_id),
-                ),
-            ]
-            should_search_condition = [
-                qdrant_models.FieldCondition(
-                    key="interval_num",
-                    match=qdrant_models.MatchValue(value=license_start_second-2),
-                ),
-                qdrant_models.FieldCondition(
-                    key="interval_num",
-                    match=qdrant_models.MatchValue(value=license_start_second-1),
-                ),
-                qdrant_models.FieldCondition(
-                    key="interval_num",
-                    match=qdrant_models.MatchValue(value=license_start_second),
-                ),
-                qdrant_models.FieldCondition(
-                    key="interval_num",
-                    match=qdrant_models.MatchValue(value=license_start_second+1),
-                ),
-                qdrant_models.FieldCondition(
-                    key="interval_num",
-                    match=qdrant_models.MatchValue(value=license_start_second+2),
-                ),
-            ]
+            can_trim_start_second = license_start_second > trim_seconds and start_second > trim_seconds
+            if can_trim_start_second:
+            
+                start_frame_embedding = video_fingerprint[start_second:start_second+1]
 
-            video_found_embeddings = self.video_index.scroll(
-                scroll_filter=qdrant_models.Filter(
-                    must=must_search_condition,
-                    should=should_search_condition
+                must_search_condition = [
+                    qdrant_models.FieldCondition(
+                        key="file_id",
+                        match=qdrant_models.MatchValue(value=license_file_id),
+                    ),
+                ]
+                should_search_condition = [
+                    qdrant_models.FieldCondition(
+                        key="interval_num",
+                        match=qdrant_models.MatchValue(value=license_start_second-2),
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="interval_num",
+                        match=qdrant_models.MatchValue(value=license_start_second-1),
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="interval_num",
+                        match=qdrant_models.MatchValue(value=license_start_second),
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="interval_num",
+                        match=qdrant_models.MatchValue(value=license_start_second+1),
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="interval_num",
+                        match=qdrant_models.MatchValue(value=license_start_second+2),
+                    ),
+                ]
+
+                legal_video_embeddings_hits, _ = self.video_index.scroll(
+                    scroll_filter=qdrant_models.Filter(
+                        must=must_search_condition,
+                        should=should_search_condition
+                    )
                 )
-            )
+                
+                legal_video_embeddings = [ torch.tensor(h.vector).unsqueeze(0) for h in legal_video_embeddings_hits ]
+                legal_video_embeddings = torch.cat(legal_video_embeddings, dim=0) # [ 5, 256 ]
 
-            hit_and_scores = [ { "score": hit.score,  "interval_num": hit.payload['interval_num'] } for hit in video_found_embeddings]
-            breakpoint()
-            print("hit_and_scores", hit_and_scores)
+                matches = start_frame_embedding @ legal_video_embeddings.T # [ 1, 5 ]
+                most_similar_idx = torch.argsort(matches, descending=True)[0][0]
+                most_similar_score = matches[0, most_similar_idx].item()
+                if most_similar_score > 0.95:
+                    most_similar_idx_offest = most_similar_score - 2
+                    print(f"found match idx from videos: most_similar_idx={most_similar_idx} most_similar_score={most_similar_score}")
+                    interval.licensed_segment.start_second = interval.licensed_segment.start_second + most_similar_idx_offest
+                    interval.licensed_segment.end_second = interval.licensed_segment.end_second + most_similar_idx_offest
+            else:
+                # start second trimming is not possible
+                pass
 
-            # trim end interval
-            # todo
+            # always append interval!
+            trimmed_matched_intervals.append(interval)
+
+
 
         return trimmed_matched_intervals
     

@@ -2,6 +2,7 @@ import pytest
 import torch
 import pickle
 from qdrant_client.conversions import common_types as types
+from typing import List
 
 from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
 from avm.search.index import EmbeddingIndexFolder
@@ -11,7 +12,8 @@ from avm.models.audio import get_default_audio_model
 from avm.models.image import get_default_image_model_for_x_vector
 from avm.fingerprint.video import VideoFingerPrinter, VideoFingerPrinterConfig
 
-def test_matcher_end_to_end():
+
+def _prepare_matcher():
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -62,6 +64,13 @@ def test_matcher_end_to_end():
         video_index=video_index,
         video_fingerprinter=video_fingerprinter,
     )
+
+    return avmatcher
+
+
+def test_matcher_end_to_end():
+
+    avmatcher = _prepare_matcher()
 
     test_video_path = 'data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
     result_matches = avmatcher.find_matches(test_video_path, cleanup=False)
@@ -289,3 +298,37 @@ def test_get_matched_segments_full_from_0pxzpgx5qpvd3o5pyve6soihftjfacfy_2():
 
 # todo test for 50vccj3b4afnbpobofwy6j4ool43snud
 
+
+def test_trim_intervals_with_visual_modality():
+
+    avmatcher = _prepare_matcher()
+
+    video_embeddings = torch.load("data/rutube/embeddings/video/index/ded3d179001b3f679a0101be95405d2c.pt")
+
+    # video_embeddings = video_embeddings[10:20]
+    # print("video_embeddings.shape", video_embeddings.shape)
+
+    matched_intervals: List[MatchedSegmentsPair] = [
+        MatchedSegmentsPair(
+            current_segment=Segment(file_id='ded3d179001b3f679a0101be95405d2c', start_second=10.0, end_second=20.0),
+            licensed_segment=Segment(file_id='ded3d179001b3f679a0101be95405d2c', start_second=11.0, end_second=21.0)
+        ),
+    ]
+
+    expected_matched_intervals: List[MatchedSegmentsPair] = [
+        MatchedSegmentsPair(
+            current_segment=Segment(file_id='ded3d179001b3f679a0101be95405d2c', start_second=10.0, end_second=20.0),
+            licensed_segment=Segment(file_id='ded3d179001b3f679a0101be95405d2c', start_second=10.0, end_second=20.0)
+        ),
+    ]
+
+    trimmed_intervals = avmatcher.trim_intervals_with_visual_modality(
+        matched_intervals,
+        video_embeddings
+    )
+
+    assert trimmed_intervals[0].current_segment == expected_matched_intervals[0].current_segment
+    assert abs(trimmed_intervals[0].licensed_segment.start_second - expected_matched_intervals[0].licensed_segment.start_second) < 1e-4
+    assert abs(trimmed_intervals[0].licensed_segment.end_second - expected_matched_intervals[0].licensed_segment.end_second) < 1e-4
+
+    return

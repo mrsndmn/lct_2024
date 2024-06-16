@@ -63,9 +63,9 @@ class EmbeddingIndexFolder():
 
     def scroll(self, scroll_filter):
         return self.qdrant.scroll(
-            collection_name=self.video_index.collection_name,
-            scroll_filter=scroll_filter
-            with_vectors=True
+            collection_name=self.collection_name,
+            scroll_filter=scroll_filter,
+            with_vectors=True,
         )
 
     def search(
