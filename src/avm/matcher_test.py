@@ -79,8 +79,6 @@ def test_matcher_end_to_end():
     assert result_matches[0].current_segment.duration() > 140
     assert result_matches[0].licensed_segment.file_id == 'ded3d179001b3f679a0101be95405d2c'
 
-    raise Exception
-
     return
 
 

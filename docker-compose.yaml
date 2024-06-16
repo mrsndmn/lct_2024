@@ -19,4 +19,6 @@ services:
       build:
         context: .
         dockerfile: dockerfiles/demo/Dockerfile
+    volumes:
+      - ./data:/lct_rutube/data
 

@@ -47,7 +47,7 @@ class EmbeddingIndexFolder():
         if qdrant_client is not None:
             self.qdrant = qdrant_client
         else:
-            self.qdrant = QdrantClient(":memory:"),
+            self.qdrant = QdrantClient(":memory:")
 
         embedding_size = embedding.shape[1]
         self.qdrant.create_collection(

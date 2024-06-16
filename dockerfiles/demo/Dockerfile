@@ -8,3 +8,6 @@ RUN pip install git+https://github.com/mrsndmn/transformers
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
+COPY ./scripts ./scripts
+COPY ./src ./src
+COPY ./demo.py ./demo.py
