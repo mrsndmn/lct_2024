@@ -32,7 +32,6 @@ from scripts.train.metric_learning import clip_loss
 @dataclass
 class TrainingConfig():
     model_name = 'UniSpeechSatForXVector'
-    # from_pretrained = 'data/models/UniSpeechSatForXVector_finetuned/fast-night-88/' # файнтюн на данных рутуба
     from_pretrained = None
 
     # Head Training

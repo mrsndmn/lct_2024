@@ -147,9 +147,17 @@ def get_metrics(target: pd.DataFrame, submit: pd.DataFrame, debug=False):
 
 if __name__ == '__main__':
 
+    save_csv_file = None
+    save_csv_file_dir = "data/rutube/embeddings/electric-yogurt-97/"
 
-    # query_interval_step = 1.0
-    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings/'
+    query_interval_step = 1.0
+    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_test_embeddings/'
+
+    # all_query_hits_intervals_steps = [ 1, 2, 3 ]
+    # all_theresholds = list(range(86, 100, 1))
+
+    all_query_hits_intervals_steps = [ 3 ]
+    all_theresholds = [ 90 ]
 
     # query_interval_step = 0.4
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_400ms/'
@@ -162,11 +170,13 @@ if __name__ == '__main__':
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_query_step_200ms/'
     # query_hits_files = os.listdir(query_hits_dir)
 
-    query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
-    query_hits_files = os.listdir(query_hits_dir)
+    # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
+    
 
-    # query_interval_step = 2.4
-    # query_hits_intervals_step = 12
+    query_hits_files = os.listdir(query_hits_dir)
+    query_interval_step = 1.0
+    query_hits_intervals_step = 1
+
     query_intervals_by_file_name = dict()
     for query_hits_file in query_hits_files:
         query_hits_full_file_path = os.path.join(query_hits_dir, query_hits_file)
@@ -179,7 +189,7 @@ if __name__ == '__main__':
     print("query_intervals_by_file_name", len(query_intervals_by_file_name))
 
     # for query_hits_intervals_step in [ 5, 10, 12, 13, 14, 18, 20, 25 ]:
-    for query_hits_intervals_step in [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]:
+    for query_hits_intervals_step in all_query_hits_intervals_steps:
         # query_interval_step = round(query_hits_intervals_step * 0.2, 3)
         query_interval_step = query_hits_intervals_step
         # assert abs(0.2 * query_hits_intervals_step - query_interval_step) < 0.001
@@ -188,7 +198,7 @@ if __name__ == '__main__':
         print("query_interval_step        ", query_interval_step)
         print("query_hits_intervals_step  ", query_hits_intervals_step)
 
-        for threshold in range(86, 100, 2):
+        for threshold in all_theresholds:
             threshold = threshold / 100
 
             matched_intervals_for_queries = []
@@ -226,6 +236,13 @@ if __name__ == '__main__':
                     validate_file_items.append(validate_file_item)
 
             created_df = pd.DataFrame(validate_file_items)
+            print("created_df", len(created_df))
+
+            if save_csv_file_dir is not None:
+                submission_file = f"submission_{query_hits_intervals_step}_{threshold:.2f}.csv"
+                submission_file_path = os.path.join(save_csv_file_dir, submission_file)
+                print("submission_file_path", submission_file_path)
+                created_df.to_csv(submission_file_path)
 
             target_df = pd.read_csv('data/rutube/piracy_val.csv')
 

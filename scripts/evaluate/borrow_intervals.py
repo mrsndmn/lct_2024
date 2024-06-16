@@ -73,7 +73,7 @@ if __name__ == '__main__':
     import pickle
     import pandas as pd
 
-    if True:
+    if False:
         audio_index = EmbeddingIndexFolder(
             index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
             # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
         os.makedirs(search_val_embeddings_base_path, exist_ok=True)
         existing_search_val_embeddings = set(os.listdir(search_val_embeddings_base_path))
-    elif False:
+    elif True:
         # test embeddings
         audio_index = EmbeddingIndexFolder(
             index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
@@ -109,7 +109,7 @@ if __name__ == '__main__':
         query_embeddings_files = sorted(os.listdir(query_embeddings_dir))
         # query_embeddings_files = [ 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.pt' ]
 
-        search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_test_embeddings_5s_query_step_2800ms/'
+        search_val_embeddings_base_path = 'data/rutube/embeddings/electric-yogurt-97/search_test_embeddings/'
         os.makedirs(search_val_embeddings_base_path, exist_ok=True)
         existing_search_val_embeddings = set(os.listdir(search_val_embeddings_base_path))
 

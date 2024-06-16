@@ -8,12 +8,66 @@
 
 # Общая архитектура решения
 
+В текущем решении упор сделан на матчинг по аудио.
+Так как в требованиях было описано, что именно эта модальность
+подверглась наименьшим искажениям.
 
+Слепки видео используются только как способ уточнить
+интервалы, полученные с помощью алгоритма для поиска
+взаимствований по аудио. В этом тесте можно посмортеть
+пример работы коррекции на основе видео-ряда [test_trim_intervals_with_visual_modality()](https://github.com/mrsndmn/lct_2024/blob/229e625dd7df73285649152cdeefa8609ccff509/src/avm/matcher_test.py#L302)
+
+Общая схема работы разработанной системы:
+
+1. Нормализация видео и аудио, выделение аудио в отдельный файл.
+2. Получение слепков для обоих модальностей -- этот процесс параллелится для модальностей независимо.
+3. Поиск -- бизнес-логика, основанная на эвристиках и векторном поиске.
 
 # Процесс предобработки видео/аудио
+[Скрипт для нормализации видео](https://github.com/mrsndmn/lct_2024/blob/495b5aa12ed23b07e0e818dbe46e7640ccf06946/scripts/normalization/normalize_video_ffmpeg.py)
+
+Алгоритм нормализации видео:
+1. Фильтруем видео с длительностью <60 секунд
+2. Приводим к FPS=1
+3. Приводим к разрешению 640*310
+4. Приводим насыщенность цветов к 0
+5. Обрезаем черные рамки при их наличии
+
+
+[Нормализация аудио](https://github.com/mrsndmn/lct_2024/blob/4a70142f35d19a7eea37b91cddfaaeed08a6b457/scripts/data/extract_audio_from_video.py#L37)
+
+Алгоритм нормализации аудио:
+1. Устанавливаем кодек pcm_s16le
+2. Приводим частоту дискретизации к значению 16000 Гц
+3. Устанавливаем количество аудиоканалов = 1
 
 
 # Процесс получения слепка
+
+## Получение слепка для аудио
+
+Для получения слепков использовалась уменьшенная модель `UniSpeechSatForXVector`
+с небольшими доработками для обучения с помощью ф-ии потерь `CLIP`.
+
+Количество обучаемых параметров `~11М`.
+
+Эта модель на вход принимает сырую волну (не мелспектрограмму),
+предобрабатывает с помощью сверток, уменьшая размерность последовательности,
+и на меньших размерностях применяет слои внимания, трансформерные блоки.
+
+Для обучения с помощью ф-ии потерь `CLIP` нужна пара данных.
+Для нашей задачи это два аугментированных отрезка аудио. К разным
+отрезкам применялись разные аугментации.
+
+Ссылки:
+* [Скрипт обучения модели](https://github.com/mrsndmn/lct_2024/blob/main/scripts/train/audio_finetuning.py)
+* [Список аугментаций](https://github.com/mrsndmn/lct_2024/blob/49549c63dbeea60092798cb50ba10c44f9970175/scripts/data/generate_audio_augmentations.py#L73)
+
+TODO
+<!-- * [Веса]() -->
+
+
+## Получение слепка для видео
 
 
 # Процесс загрузки/индексации набора видео в базу
@@ -21,6 +75,75 @@
 Отдельно обрабатываются аудио и кадры. Для каждого видео выполняется нормализация, формирование фингерпирнтов(эмбедингов) и их сохранение а БД.
 
 # Процесс поиска видео по базе
+
+### Выбор метрики для схожести слепков
+
+Модель была обучена на сближение метрики косинусного расстояния.
+Тем не менее, в qdrant есть возможность использовать метрику расстояния
+для слепков `Dot`. Результаты вычисления `Dot` метрики для нормализованных
+векторов точно такие же как для `Cosine` метрики. При этом вычислять
+`Dot`-расстояние вичислительно более эффективно.
+
+Правильный выбор метрики ускоряет поиск по индексу
+```
+# тест-бенчмарк, как расстояние влияет
+# на скорость работы векторного поиска
+pytest -s src/avm/search/audio_test.py
+
+metric=Dot     embedding_size=64       time=0.005
+metric=Dot     embedding_size=128      time=0.007
+metric=Dot     embedding_size=256      time=0.009
+metric=Dot     embedding_size=512      time=0.012
+
+metric=Cosine  embedding_size=64       time=0.022
+metric=Cosine  embedding_size=128      time=0.038
+metric=Cosine  embedding_size=256      time=0.081
+metric=Cosine  embedding_size=512      time=0.114
+```
+
+Из результатов бенчмарка можно заметить, что `Dot` метрика
+всегда быстрее чем `Cosine` при одинаковой размерности.
+При этом результат расстояния одинаковый в случае, если слпепки
+заранее нормализованы. Поэтому в текущем проекте будет использоваться
+именно `Dot` метрика.
+
+Так же учеличение размености слепка приводит к замедлению индекса.
+Слепки большей размерности несут большее кол-во информации, но и
+занимают больше оперативной памяти.
+В качестве коммпромисса между скоростью поиска в векторном пространстве
+и кол-вом информации в слепке была выбрана разменость слепков 256.
+
+#### Алгоритм поиска взаимствований по аудио
+
+#### Алгоритм поиска взаимствований по видео
+
+
+Для каждого файла-запроса генерируются эмбэддинги
+с определенными гипер-параметрами. Гиперпараметры
+подбирались на валидационном датасете перебором (см приложение 1).
+
+Максимальное значение финальной метрики на валидационном датасете
+-- `0.749` с парамтерами:
+```
+query_interval_step         3
+threshold                   0.9
+```
+
+Эвристики, которые используются для обработки интервалов:
+* Очень короткие интервалы не могут быть валидными.
+* Если для одного 
+
+
+## Возможные оптимизации
+
+Сейчас самой дорогой по вычислительным ресурсам частью системы
+является создание эмбэддингов. Сейчас эмбэддинги генерируются
+с маленьким шагом и большим пересечением. При это получается, что
+данные из пересечения интервалов проходят через нейросетьнесколько раз.
+
+Для контекстно-локальных слоев (сверточных) это можно оптимизировать и вычислять
+свертоеные слои один раз. А для контекстно-зависимые слои (механизм внимания)
+запускать с пересечениями на уже предобработанных свертками активациях.
 
 
 # Основные взаимодействия с интерфейсом системы.
@@ -81,178 +204,102 @@ TODO возможно, понижение размерности или кван
 * Тк в пиратском видео данные могут быть с небольшим или большим оффсетом -- нужно генерить эмбэддинги с маленьким шагом и оптимизация пуллинга в этом нам помогает
 
 
-## Поиск:
-* Можно ли ускорить поиск используя dot вместо cosine?
+# Приложение 1
 
-Да! Нужно нормализовать векторы и делать поиск с порощью `DOT` расстояния на уже нормализованных
-векторах. Значение метрики для нормализованных векторов получаются одинаковыми. А вычислений
-нужно намного меньше.
+## Как трешолд и количество эмбэддингов в интервалах влияет на результирующую метрику?
 
-Правильный выбор метрики ускоряет поиск по индексу
+**Скрипт** - `scripts/evaluate/process_query_hits.py`
 
-# TODO перезапустить бенчмарк с разными размерностями скрытого пространства
-```
-# тест-бенчмарк, как расстояние влияет
-# на скорость работы векторного поиска
-pytest -s src/avm/search/audio_test.py
+Длинна одного интервала = 5 секунд
 
-metric=Dot      time= 0.010836975419997542
-metric=Cosine   time= 0.10016995635000057
-```
-
-# Как трешолд и количество эмбэддингов в интервалах влияет на результирующую метрику?
-
-`scripts/evaluate/process_query_hits.py`
-
-Длинна одного интервала = 5 секунд^
-
-Выводы: наибольшее значение итоговой метрики достгается при пересечении интервалов
+*Выводы:* наибольшее значение итоговой метрики достгается при пересечении интервалов
 примерно на половину или чуть больше половины.
 
-Максимальное значение метрики = `0.776` с парамтерами:
+Максимальное значение метрики = `0.749` с парамтерами:
 ```
-query_interval_step         2.8
-query_hits_intervals_step   14
-threshold                   0.92
+query_interval_step         3
+threshold                   0.9
 ```
 
-С экстримально маленькими интервалами (200, 400 мс) пересечения качество падает.
+С маленькими интервалами пересечения качество падает.
 При пересеченнии стремящемся к длинне самого интервала тоже качество падает.
 
 ```
 ============================================
-query_interval_step         1.0
-query_hits_intervals_step   5
-threshold 0.8   final_iou 0.496         f1 0.818        final_metric_value 0.617
-threshold 0.82  final_iou 0.496         f1 0.818        final_metric_value 0.617
-threshold 0.84  final_iou 0.496         f1 0.818        final_metric_value 0.618
+query_interval_step         1
+query_hits_intervals_step   1
 threshold 0.86  final_iou 0.504         f1 0.821        final_metric_value 0.624
+threshold 0.87  final_iou 0.517         f1 0.826        final_metric_value 0.636
 threshold 0.88  final_iou 0.515         f1 0.818        final_metric_value 0.632
+threshold 0.89  final_iou 0.521         f1 0.819        final_metric_value 0.637
 threshold 0.9   final_iou 0.534         f1 0.828        final_metric_value 0.649
+threshold 0.91  final_iou 0.535         f1 0.821        final_metric_value 0.647
 threshold 0.92  final_iou 0.561         f1 0.84         final_metric_value 0.673
-threshold 0.94  final_iou 0.599         f1 0.852        final_metric_value 0.704  <-- max
+threshold 0.93  final_iou 0.608         f1 0.86         final_metric_value 0.713
+threshold 0.94  final_iou 0.599         f1 0.852        final_metric_value 0.704
+threshold 0.95  final_iou 0.593         f1 0.854        final_metric_value 0.7
 threshold 0.96  final_iou 0.517         f1 0.824        final_metric_value 0.635
+threshold 0.97  final_iou 0.421         f1 0.78         final_metric_value 0.547
 threshold 0.98  final_iou 0.245         f1 0.662        final_metric_value 0.358
+threshold 0.99  final_iou 0.051         f1 0.395        final_metric_value 0.09
 
 
 ============================================
-query_interval_step         2.0
-query_hits_intervals_step   10
-threshold 0.8   final_iou 0.605         f1 0.889        final_metric_value 0.72
-threshold 0.82  final_iou 0.61          f1 0.893        final_metric_value 0.725
-threshold 0.84  final_iou 0.618         f1 0.896        final_metric_value 0.731  <-- max
-threshold 0.86  final_iou 0.6           f1 0.884        final_metric_value 0.714
+query_interval_step         2
+query_hits_intervals_step   2
+threshold 0.86  final_iou 0.6   f1 0.884        final_metric_value 0.714
+threshold 0.87  final_iou 0.595         f1 0.878        final_metric_value 0.709
 threshold 0.88  final_iou 0.594         f1 0.872        final_metric_value 0.706
+threshold 0.89  final_iou 0.619         f1 0.884        final_metric_value 0.728
 threshold 0.9   final_iou 0.609         f1 0.874        final_metric_value 0.718
-threshold 0.92  final_iou 0.62          f1 0.877        final_metric_value 0.726
+threshold 0.91  final_iou 0.6   f1 0.869        final_metric_value 0.71
+threshold 0.92  final_iou 0.62  f1 0.877        final_metric_value 0.726
+threshold 0.93  final_iou 0.617         f1 0.878        final_metric_value 0.725
 threshold 0.94  final_iou 0.623         f1 0.88         final_metric_value 0.73
+threshold 0.95  final_iou 0.586         f1 0.871        final_metric_value 0.701
 threshold 0.96  final_iou 0.486         f1 0.839        final_metric_value 0.616
+threshold 0.97  final_iou 0.341         f1 0.752        final_metric_value 0.47
 threshold 0.98  final_iou 0.205         f1 0.629        final_metric_value 0.309
+threshold 0.99  final_iou 0.029         f1 0.323        final_metric_value 0.053
 
 
 ============================================
-query_interval_step         2.4
-query_hits_intervals_step   12
-threshold 0.8   final_iou 0.641         f1 0.897        final_metric_value 0.748
-threshold 0.82  final_iou 0.642         f1 0.897        final_metric_value 0.748
-threshold 0.84  final_iou 0.641         f1 0.897        final_metric_value 0.748
-threshold 0.86  final_iou 0.634         f1 0.898        final_metric_value 0.743
-threshold 0.88  final_iou 0.636         f1 0.892        final_metric_value 0.742
-threshold 0.9   final_iou 0.634         f1 0.883        final_metric_value 0.738
-threshold 0.92  final_iou 0.656         f1 0.899        final_metric_value 0.758
-threshold 0.94  final_iou 0.656         f1 0.902        final_metric_value 0.759
-threshold 0.96  final_iou 0.586         f1 0.879        final_metric_value 0.703
-threshold 0.98  final_iou 0.157         f1 0.64         final_metric_value 0.252
+query_interval_step         3
+query_hits_intervals_step   3
+threshold 0.86  final_iou 0.611         f1 0.874        final_metric_value 0.72
+threshold 0.95  final_iou 0.586         f1 0.871        final_metric_value 0.701                              [11/1962]
+threshold 0.96  final_iou 0.486         f1 0.839        final_metric_value 0.616
+threshold 0.97  final_iou 0.341         f1 0.752        final_metric_value 0.47
+threshold 0.98  final_iou 0.205         f1 0.629        final_metric_value 0.309
+threshold 0.99  final_iou 0.029         f1 0.323        final_metric_value 0.053
 
 
 ============================================
-query_interval_step         2.6
-query_hits_intervals_step   13
-threshold 0.8   final_iou 0.578         f1 0.874        final_metric_value 0.696
-threshold 0.82  final_iou 0.574         f1 0.871        final_metric_value 0.692
-threshold 0.84  final_iou 0.584         f1 0.881        final_metric_value 0.703
-threshold 0.86  final_iou 0.594         f1 0.888        final_metric_value 0.712
-threshold 0.88  final_iou 0.6           f1 0.888        final_metric_value 0.716
-threshold 0.9   final_iou 0.65          f1 0.9          final_metric_value 0.755
-threshold 0.92  final_iou 0.639         f1 0.882        final_metric_value 0.741
-threshold 0.94  final_iou 0.661         f1 0.903        final_metric_value 0.763
-threshold 0.96  final_iou 0.568         f1 0.872        final_metric_value 0.688
-threshold 0.98  final_iou 0.155         f1 0.648        final_metric_value 0.25
-
-
-============================================
-query_interval_step         2.8
-query_hits_intervals_step   14
-threshold 0.8   final_iou 0.658         f1 0.912        final_metric_value 0.764
-threshold 0.82  final_iou 0.653         f1 0.908        final_metric_value 0.76
-threshold 0.84  final_iou 0.653         f1 0.908        final_metric_value 0.76
-threshold 0.86  final_iou 0.648         f1 0.905        final_metric_value 0.755
-threshold 0.88  final_iou 0.647         f1 0.902        final_metric_value 0.753
-threshold 0.9   final_iou 0.675         f1 0.908        final_metric_value 0.775
-threshold 0.92  final_iou 0.675         f1 0.912        final_metric_value 0.776 <-- max
-threshold 0.94  final_iou 0.661         f1 0.908        final_metric_value 0.765
-threshold 0.96  final_iou 0.552         f1 0.877        final_metric_value 0.677
-threshold 0.98  final_iou 0.143         f1 0.619        final_metric_value 0.232
-
-
-============================================
-query_interval_step         3.6
-query_hits_intervals_step   18
-threshold 0.8   final_iou 0.653         f1 0.908        final_metric_value 0.759
-threshold 0.82  final_iou 0.653         f1 0.908        final_metric_value 0.76
-threshold 0.84  final_iou 0.653         f1 0.908        final_metric_value 0.76
-threshold 0.86  final_iou 0.631         f1 0.893        final_metric_value 0.74
-threshold 0.88  final_iou 0.644         f1 0.902        final_metric_value 0.751
-threshold 0.9   final_iou 0.649         f1 0.902        final_metric_value 0.755
-threshold 0.92  final_iou 0.67          f1 0.917        final_metric_value 0.775  <-- max
-threshold 0.94  final_iou 0.644         f1 0.905        final_metric_value 0.752
-threshold 0.96  final_iou 0.418         f1 0.789        final_metric_value 0.546
-threshold 0.98  final_iou 0.085         f1 0.575        final_metric_value 0.148
-
-
-============================================
-query_interval_step         4.0
-query_hits_intervals_step   20
-threshold 0.8   final_iou 0.63          f1 0.899        final_metric_value 0.741
-threshold 0.82  final_iou 0.63          f1 0.899        final_metric_value 0.741  <-- max
-threshold 0.84  final_iou 0.623         f1 0.893        final_metric_value 0.734
-threshold 0.86  final_iou 0.616         f1 0.887        final_metric_value 0.727
-threshold 0.88  final_iou 0.619         f1 0.884        final_metric_value 0.728
-threshold 0.9   final_iou 0.63          f1 0.89         final_metric_value 0.738
-threshold 0.92  final_iou 0.611         f1 0.884        final_metric_value 0.722
-threshold 0.94  final_iou 0.486         f1 0.841        final_metric_value 0.616
-threshold 0.96  final_iou 0.336         f1 0.766        final_metric_value 0.467
-threshold 0.98  final_iou 0.117         f1 0.491        final_metric_value 0.189
-
-
-============================================
-query_interval_step         5.0
-query_hits_intervals_step   25
-threshold 0.8   final_iou 0.578         f1 0.864        final_metric_value 0.693
-threshold 0.82  final_iou 0.573         f1 0.864        final_metric_value 0.689
-threshold 0.84  final_iou 0.579         f1 0.867        final_metric_value 0.694
-threshold 0.86  final_iou 0.578         f1 0.867        final_metric_value 0.694  <-- max
-threshold 0.88  final_iou 0.568         f1 0.859        final_metric_value 0.684
-threshold 0.9   final_iou 0.56          f1 0.855        final_metric_value 0.677
-threshold 0.92  final_iou 0.469         f1 0.816        final_metric_value 0.595
-threshold 0.94  final_iou 0.391         f1 0.794        final_metric_value 0.524
-threshold 0.96  final_iou 0.233         f1 0.674        final_metric_value 0.346
-threshold 0.98  final_iou 0.079         f1 0.471        final_metric_value 0.135
+query_interval_step         3
+query_hits_intervals_step   3
+threshold 0.86  final_iou 0.611         f1 0.874        final_metric_value 0.72
+threshold 0.87  final_iou 0.619         f1 0.877        final_metric_value 0.726
+threshold 0.88  final_iou 0.629         f1 0.877        final_metric_value 0.733
+threshold 0.89  final_iou 0.64  f1 0.879        final_metric_value 0.741
+threshold 0.9   final_iou 0.649         f1 0.885        final_metric_value 0.749
+threshold 0.91  final_iou 0.633         f1 0.886        final_metric_value 0.738
+threshold 0.92  final_iou 0.62  f1 0.877        final_metric_value 0.726
+threshold 0.93  final_iou 0.587         f1 0.866        final_metric_value 0.7
+threshold 0.94  final_iou 0.554         f1 0.856        final_metric_value 0.673
+threshold 0.95  final_iou 0.484         f1 0.833        final_metric_value 0.612
+threshold 0.96  final_iou 0.366         f1 0.768        final_metric_value 0.496
+threshold 0.97  final_iou 0.245         f1 0.681        final_metric_value 0.361
+threshold 0.98  final_iou 0.136         f1 0.553        final_metric_value 0.218
+threshold 0.99  final_iou 0.018         f1 0.268        final_metric_value 0.033
 ```
 
-# Длинна интервала 10 секунд 
+## Длинна интервала 10 секунд 
 
 При увеличении длинны интервала получаем плохие значения метрик.
 Возможно, из-за того, что моделька обучалась именно на 5-секундных интервалах.
 
 Увеличение длинны интервала немного удлинняет скорость генерации фингерпринтов.
 В 2 раза.
-
-Но возможно, увеличивает качество?
-
-И в теории, можно оптимизировать сверточную часть сети для матчинга аудио.
-
-Время поиска похожих кандидатов - около часа для валидационного датасета на 8 ядрах.
 
 
 ```
