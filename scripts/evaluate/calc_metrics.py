@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-from avm.search.audio import AudioIndex
+from avm.search.index import EmbeddingIndexFolder
 from avm.matcher import Segment
 
 from scripts.evaluate.borrow_intervals import get_matched_segments, IntervalsConfig, evaluate_iou
@@ -89,7 +89,7 @@ def evaluate_metrics(config: EvaluationConfig, metrics_df):
 
 def evaluate_matching(config: EvaluationConfig):
 
-    audio_index = AudioIndex(config.index_embeddings_path)
+    audio_index = EmbeddingIndexFolder(config.index_embeddings_path)
 
     metrics_log_path = config.metrics_log_path
     os.makedirs(metrics_log_path, exist_ok=True)

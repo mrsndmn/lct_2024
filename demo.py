@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import time
 
 from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
-from avm.search.audio import AudioIndex
+from avm.search.index import EmbeddingIndexFolder
 from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
 from avm.models.audio import get_default_audio_model
 
@@ -66,7 +66,7 @@ def get_matcher():
     matcher_config = AVMatcherConfig(
         query_interval_step=1.0,
     )
-    audio_index = AudioIndex(
+    audio_index = EmbeddingIndexFolder(
         index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
         index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
     )

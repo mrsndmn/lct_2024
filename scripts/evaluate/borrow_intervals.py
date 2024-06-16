@@ -2,7 +2,7 @@ from typing import List
 from dataclasses import dataclass, field
 import torch
 from copy import deepcopy
-from avm.search.audio import AudioIndex
+from avm.search.index import EmbeddingIndexFolder
 # from qdrant_client.conversions import common_types as types
 from avm.matcher import Segment, MatchedSegmentsPair, get_matched_segments
 # [
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     import pandas as pd
 
     if False:
-        audio_index = AudioIndex(
+        audio_index = EmbeddingIndexFolder(
             index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
             # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
         )
@@ -86,7 +86,7 @@ if __name__ == '__main__':
         os.makedirs(search_val_embeddings_base_path, exist_ok=True)
     elif False:
         # эмбэддинги по интервалам в 10 секунд
-        audio_index = AudioIndex(
+        audio_index = EmbeddingIndexFolder(
             index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings_10s/',
             # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
         )
@@ -100,7 +100,7 @@ if __name__ == '__main__':
         existing_search_val_embeddings = set(os.listdir(search_val_embeddings_base_path))
     else:
         # test embeddings
-        audio_index = AudioIndex(
+        audio_index = EmbeddingIndexFolder(
             index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings_10s/',
             # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
         )

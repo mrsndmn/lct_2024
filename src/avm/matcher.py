@@ -5,10 +5,16 @@ from copy import deepcopy
 
 from typing import List
 
-from avm.search.audio import AudioIndex
+from avm.search.index import EmbeddingIndexFolder
 from avm.fingerprint.audio import AudioFingerPrinter
 
 from scripts.normalization.normalize_video_ffmpeg import normalize_video_for_matching
+
+from avm.fingerprint.video import VideoFingerPrinter
+
+from qdrant_client import QdrantClient, models as qdrant_models
+from qdrant_client.conversions import common_types as qdrant_types
+
 
 @dataclass
 class Segment:
@@ -47,7 +53,6 @@ class AVMatcherConfig:
 
     sampling_rate:int = field(default=16000)
 
-
     # Мерджим сегменты, если у них разница во времени меньше X секунд
     merge_segments_with_diff_seconds:float = field(default=10.)
     # Удаляем сегменты, которые длятся менее X секунд
@@ -62,13 +67,19 @@ class AVMatcher():
 
     def __init__(self,
                  config: AVMatcherConfig,
-                 audio_index: AudioIndex,
+                 audio_index: EmbeddingIndexFolder,
                  audio_fingerprinter: AudioFingerPrinter, 
+                 video_index: EmbeddingIndexFolder,
+                 video_fingerprinter: VideoFingerPrinter,
                 ):
 
         self.config = config
+
         self.audio_index = audio_index
         self.audio_fingerprinter = audio_fingerprinter
+
+        self.video_index = video_index
+        self.video_fingerprinter = video_fingerprinter
 
         # self.video_index = video_index
 
@@ -90,11 +101,83 @@ class AVMatcher():
         # Video Matching for trimming audio intervals
         normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
 
+        trimmed_matched_intervals = self.trim_intervals_with_visual_modality(
+            audio_matched_intervals, normalized_video_file
+        )
+
         if cleanup:
             os.remove(audio_file)
             os.remove(normalized_video_file)
 
-        return audio_matched_intervals
+        return trimmed_matched_intervals
+    
+    def trim_intervals_with_visual_modality(
+            self,
+            audio_matched_intervals: List[MatchedSegmentsPair],
+            normalized_video_file: str,
+            ) -> List[MatchedSegmentsPair]:
+
+        video_fingerprints = self.video_fingerprinter.fingerprint_from_file(normalized_video_file)
+        video_fingerprints = video_fingerprints.cpu().numpy()
+
+        # todo вообщег говоря, для тимминга и валидации,
+        # кажется, уже не нужен векторный поиск
+
+        trimmed_matched_intervals = audio_matched_intervals
+        # trimmed_matched_intervals: List[MatchedSegmentsPair] = []
+        for interval in audio_matched_intervals:
+            # trim start interval
+            license_file_id = interval.licensed_segment.file_id
+            license_start_second = int(interval.licensed_segment.start_second)
+            license_end_second = interval.licensed_segment.start_second
+
+            start_second = int(interval.current_segment.start_second)
+            start_frame_embedding = video_fingerprints[start_second]
+
+            must_search_condition = [
+                qdrant_models.FieldCondition(
+                    key="file_id",
+                    match=qdrant_models.MatchValue(value=license_file_id),
+                ),
+            ]
+            should_search_condition = [
+                qdrant_models.FieldCondition(
+                    key="interval_num",
+                    match=qdrant_models.MatchValue(value=license_start_second-2),
+                ),
+                qdrant_models.FieldCondition(
+                    key="interval_num",
+                    match=qdrant_models.MatchValue(value=license_start_second-1),
+                ),
+                qdrant_models.FieldCondition(
+                    key="interval_num",
+                    match=qdrant_models.MatchValue(value=license_start_second),
+                ),
+                qdrant_models.FieldCondition(
+                    key="interval_num",
+                    match=qdrant_models.MatchValue(value=license_start_second+1),
+                ),
+                qdrant_models.FieldCondition(
+                    key="interval_num",
+                    match=qdrant_models.MatchValue(value=license_start_second+2),
+                ),
+            ]
+
+            video_found_embeddings = self.video_index.scroll(
+                scroll_filter=qdrant_models.Filter(
+                    must=must_search_condition,
+                    should=should_search_condition
+                )
+            )
+
+            hit_and_scores = [ { "score": hit.score,  "interval_num": hit.payload['interval_num'] } for hit in video_found_embeddings]
+            breakpoint()
+            print("hit_and_scores", hit_and_scores)
+
+            # trim end interval
+            # todo
+
+        return trimmed_matched_intervals
     
     def normalize_video(self, video_full_path, file_id):
         normalized_video_file_name = file_id + ".mp4"
@@ -277,37 +360,3 @@ def get_matched_segments(config, query_file_id, query_hits_intervals, debug=Fals
     return merged_again_again_segments
 
 
-def dummy_get_matched_intervals():
-
-    legal_interval1 = Segment(
-        file_id="legal1",
-        start_second=1,
-        end_second=10,
-    )
-    legal_interval2 = Segment(
-        file_id="legal2",
-        start_second=22000,
-        end_second=33000,
-    )
-
-    pirate_interval1 = Segment(
-        file_id="ugc",
-        start_second=12300,
-        end_second=45600,
-    )
-    pirate_interval2 = Segment(
-        file_id="ugc",
-        start_second=22000,
-        end_second=33000,
-    )
-
-    return [
-        MatchedSegmentsPair(
-            current_segment=pirate_interval1,
-            licensed_segment=legal_interval1,
-        ),
-        MatchedSegmentsPair(
-            current_segment=pirate_interval2,
-            licensed_segment=legal_interval2,
-        ),
-    ]

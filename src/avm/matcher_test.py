@@ -4,16 +4,38 @@ import pickle
 from qdrant_client.conversions import common_types as types
 
 from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
-from avm.search.audio import AudioIndex
+from avm.search.index import EmbeddingIndexFolder
 from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
 from avm.models.audio import get_default_audio_model
 
+from avm.models.image import get_default_image_model_for_x_vector
+from avm.fingerprint.video import VideoFingerPrinter, VideoFingerPrinterConfig
+
 def test_matcher_end_to_end():
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     matcher_config = AVMatcherConfig(
         query_interval_step=1.0,
     )
-    audio_index = AudioIndex(
+
+    # Visual modality
+    video_index = EmbeddingIndexFolder(
+        index_embeddings_dir='data/rutube/embeddings/video/index/',
+        collection_name="video_index",
+        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+    )
+    visual_model = get_default_image_model_for_x_vector(
+        from_pretrained="data/models/image/efficient-net-b0/ruby-moon-17",
+    )
+    visual_model.to(device)
+    visual_model.eval()
+
+    vfp_config = VideoFingerPrinterConfig()
+    video_fingerprinter = VideoFingerPrinter(vfp_config, visual_model)
+
+    # Audio modality
+    audio_index = EmbeddingIndexFolder(
         index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
         index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
     )
@@ -23,14 +45,13 @@ def test_matcher_end_to_end():
         batch_size=10,
     )
 
-    model, feature_extractor = get_default_audio_model()
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model.eval()
-    model.to(device)
+    audio_model, feature_extractor = get_default_audio_model()
+    audio_model.eval()
+    audio_model.to(device)
 
     audio_validation_fingerprinter = AudioFingerPrinter(
         audio_validation_figerprinter_config,
-        model=model,
+        model=audio_model,
         feature_extractor=feature_extractor,
     )
 
@@ -38,6 +59,8 @@ def test_matcher_end_to_end():
         matcher_config,
         audio_index=audio_index,
         audio_fingerprinter=audio_validation_fingerprinter,
+        video_index=video_index,
+        video_fingerprinter=video_fingerprinter,
     )
 
     test_video_path = 'data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
@@ -46,6 +69,8 @@ def test_matcher_end_to_end():
     assert len(result_matches) == 1
     assert result_matches[0].current_segment.duration() > 140
     assert result_matches[0].licensed_segment.file_id == 'ded3d179001b3f679a0101be95405d2c'
+
+    raise Exception
 
     return
 

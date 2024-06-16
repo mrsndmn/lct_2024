@@ -16,7 +16,7 @@ class FingerprintValAudios():
     few_dataset_samples = None
 
     interval_duration_in_seconds = 5
-    interval_step = 0.2
+    interval_step = 1.0
     batch_size = 128
     embeddings_normalization = True
     audio_normalization = True
@@ -32,7 +32,7 @@ class FingerprintTestAudios():
     few_dataset_samples = None
 
     interval_duration_in_seconds = 5
-    interval_step = 2.8
+    interval_step = 1.0
     batch_size = 128
     embeddings_normalization = True
     audio_normalization = True
@@ -159,16 +159,26 @@ def generate_fingerprints(config: FingerprintConfig):
 
 if __name__ == '__main__':
 
-    # index_config = FingerprintIndexAudios()
+    index_config = FingerprintIndexAudios()
     # index_config = FingerprintIndexAudios10s()
-    # generate_fingerprints(index_config)
+    generate_fingerprints(index_config)
 
-    # val_config = FingerprintValAudios()
+    val_config = FingerprintValAudios()
     # val_config = FingerprintValAudios10s()
-    # generate_fingerprints(val_config)
+    generate_fingerprints(val_config)
 
     test_config = FingerprintTestAudios()
-    generate_fingerprints(test_config)
+    generate_fingerprints(val_config)
+
+    # embeddings_out_dir = index_config.embeddings_out_dir
+    # test_files = os.listdir(embeddings_out_dir)
+    
+    # for test_file in test_files:
+    #     test_file_full_path = os.path.join(embeddings_out_dir, test_file)
+    #     emb = torch.load(test_file_full_path)
+    #     print(emb.shape)
+
+    # generate_fingerprints(test_config)
 
 
     raise Exception
