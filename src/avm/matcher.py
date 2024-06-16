@@ -8,6 +8,8 @@ from typing import List
 from avm.search.audio import AudioIndex
 from avm.fingerprint.audio import AudioFingerPrinter
 
+from scripts.normalization.normalize_video_ffmpeg import normalize_video_for_matching
+
 @dataclass
 class Segment:
     # Сегмент для одного аудио/видео -- непрерывный участок
@@ -41,6 +43,7 @@ class AVMatcherConfig:
     interval_duration_in_seconds:float = field(default=5.0)
 
     extracted_audios_dir: str = field(default="/tmp/avmatcher/extracted_audios")
+    normalized_videos_dir: str = field(default="/tmp/avmatcher/normalized_videos")
 
     sampling_rate:int = field(default=16000)
 
@@ -55,6 +58,7 @@ class AVMatcherConfig:
 
 
 class AVMatcher():
+    """Audio and Video Matcher"""
 
     def __init__(self,
                  config: AVMatcherConfig,
@@ -76,16 +80,31 @@ class AVMatcher():
         
         file_id = os.path.basename(video_full_path).removesuffix(".mp4")
 
+        # Audio Matching
         print("extracting audio from video")        
         audio_file: str = self.extract_audio_from_video_file(video_full_path, file_id=file_id)
         print("audio file extracted", audio_file)
 
         audio_matched_intervals = self.find_audio_only_matches(audio_file, file_id=file_id)
 
+        # Video Matching for trimming audio intervals
+        normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
+
         if cleanup:
             os.remove(audio_file)
+            os.remove(normalized_video_file)
 
         return audio_matched_intervals
+    
+    def normalize_video(self, video_full_path, file_id):
+        normalized_video_file_name = file_id + ".mp4"
+        normalized_video_full_path = os.path.join(self.config.normalized_videos_dir, normalized_video_file_name)
+
+        if os.path.exists(normalized_video_full_path):
+            print("file was already preprocessed", normalized_video_full_path)
+            return normalized_video_full_path
+
+        return normalize_video_for_matching(video_full_path, normalized_video_full_path)
 
     def find_audio_only_matches(self, audio_file, file_id) -> List[MatchedSegmentsPair]:
         

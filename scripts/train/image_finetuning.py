@@ -29,13 +29,13 @@ class TrainingConfig():
     batch_size = 2
     learning_rate = 3e-4
 
-    videos_dir = "data/rutube/videos/pytest_videos_normalized/"
+    videos_dir = "data/rutube/videos/compressed_normalized_index/"
 
     model_checkpoints_path = 'data/models/image/efficient-net-b0'
-    save_and_evaluate_model_every_epoch = 100
+    save_and_evaluate_model_every_epoch = 1
 
-    num_epochs = 30
-    multiply_train_epoch_data = 10
+    num_epochs = 1
+    multiply_train_epoch_data = 5
 
     few_dataset_samples = None
 
@@ -75,7 +75,7 @@ class RandomVideoCoupleFramesDataset():
 
         frames_num = video_frames.shape[0]
         frames_distance = random.randint(1, self.max_frames_distance)
-        first_frame_i = random.randint(0, frames_num - frames_distance)
+        first_frame_i = random.randint(0, frames_num - frames_distance - 1)
 
         first_frame = video_frames[first_frame_i:first_frame_i+1]
         second_frame_i = first_frame_i+frames_distance
@@ -103,15 +103,20 @@ def train(config: TrainingConfig, metric_logger: wandb_sdk.wandb_run.Run):
     if config.few_dataset_samples is not None:
         training_dataset = training_dataset.select(range(config.few_dataset_samples))
 
-    print("training_dataset", training_dataset)
+    print("training_dataset items", len(training_dataset))
 
-    default_data_collator = DefaultDataCollator()
+    def collate_fn(items):
+        frames_pairs = [ x['frames'].unsqueeze(0) for x in items ]
+        # for i, fp in enumerate(frames_pairs):
+        #     print(i, fp.shape)
+        return { "frames": torch.cat(frames_pairs, dim=0) }
+
     training_dataloader = DataLoader(
         training_dataset,
         batch_size=config.batch_size,
         shuffle=True,
         drop_last=True,
-        collate_fn=default_data_collator,
+        collate_fn=collate_fn,
         num_workers=2,
     )
 

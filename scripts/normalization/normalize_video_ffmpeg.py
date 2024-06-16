@@ -73,6 +73,25 @@ def mark_the_time(f):
 
     return wrapper
 
+def normalize_video_for_matching(
+        input_video_path,
+        output_video_path,
+        target_fps=1,
+        target_width=224,
+        target_height=224,
+        ):
+    stream = ffmpeg.input(input_video_path). \
+        filter('fps', fps=target_fps, round='up'). \
+        filter('scale', w=target_width, h=target_height). \
+        filter('hue', s=0)
+
+    stream = ffmpeg.output(stream, output_video_path)
+    ffmpeg.run(stream)
+
+    trim_black_frames(output_video_path)
+
+    return output_video_path
+
 
 @mark_the_time
 def main():
@@ -112,18 +131,17 @@ def main():
         if duration < min_duration:
             print(f"{video} skippped because of too short duration: {duration}s")
             continue
-
-        stream = ffmpeg.input(video_path). \
-            filter('fps', fps=target_fps, round='up'). \
-            filter('scale', w=target_width, h=target_height). \
-            filter('hue', s=0)
-
-        new_video_path = target_path + video
-        stream = ffmpeg.output(stream, new_video_path)
-        ffmpeg.run(stream)
-
-        trim_black_frames(new_video_path)
-
+        
+        input_video_path = os.path.join(source_path, video)
+        output_video_path = os.path.join(target_path, video)
+        
+        normalize_video_for_matching(
+            input_video_path,
+            output_video_path,
+            target_fps=target_fps,
+            target_width=target_width,
+            target_height=target_height,
+        )
 
 if __name__ == '__main__':
     main()
