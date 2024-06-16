@@ -99,9 +99,9 @@ def main():
     parser.add_argument("--fps", help="Target fps for normalization", type=int,
                         default=1)
     parser.add_argument("--width", help="Target width for normalization", type=int,
-                        default=640)
+                        default=224)
     parser.add_argument("--height", help="Target height for normalization", type=int,
-                        default=310)
+                        default=224)
     parser.add_argument("--duration", help="Min duration for applying normalization in seconds", type=int,
                         default=60)
 
