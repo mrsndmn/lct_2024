@@ -17,4 +17,6 @@ ENV PYTHONPATH=.:./src
 RUN mkdir -p /tmp/avmatcher/extracted_audios
 RUN mkdir -p /tmp/avmatcher/normalized_videos
 
+RUN pip install av
+
 ENTRYPOINT streamlit run demo.py
