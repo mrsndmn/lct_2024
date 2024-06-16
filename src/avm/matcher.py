@@ -155,7 +155,7 @@ class AVMatcher():
             can_trim_start_second = license_start_second > trim_seconds and start_second > trim_seconds
             if can_trim_start_second:
             
-                start_frame_embedding = video_fingerprint[start_second:start_second+1]
+                start_frame_embedding = torch.from_numpy(video_fingerprint[start_second:start_second+1])
 
                 must_search_condition = [
                     qdrant_models.FieldCondition(

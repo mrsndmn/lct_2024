@@ -11,3 +11,10 @@ RUN pip install -r requirements.txt
 COPY ./scripts ./scripts
 COPY ./src ./src
 COPY ./demo.py ./demo.py
+
+ENV PYTHONPATH=.:./src
+
+RUN mkdir -p /tmp/avmatcher/extracted_audios
+RUN mkdir -p /tmp/avmatcher/normalized_videos
+
+ENTRYPOINT streamlit run demo.py

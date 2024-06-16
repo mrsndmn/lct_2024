@@ -46,7 +46,7 @@ class EfficientNetForXVector(nn.Module):
 
         state_path = os.path.join(save_directory, "model_state.pt")
         with open(state_path, 'rb') as f:
-            model_state_dict = torch.load(f)
+            model_state_dict = torch.load(f, map_location='cpu')
 
         model.load_state_dict(model_state_dict)
 

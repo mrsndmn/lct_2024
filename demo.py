@@ -9,14 +9,21 @@ from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment
 from avm.search.index import EmbeddingIndexFolder
 from avm.fingerprint.audio import AudioFingerPrinterConfig, AudioFingerPrinter
 from avm.models.audio import get_default_audio_model
+from avm.models.image import get_default_image_model_for_x_vector
+from avm.models.image import get_default_image_model_for_x_vector
+from avm.fingerprint.video import VideoFingerPrinter, VideoFingerPrinterConfig
+
+from tempfile import NamedTemporaryFile
 
 import torch
 
-# uploaded_file = st.file_uploader("Select video")
-uploaded_file = './data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
+from qdrant_client import QdrantClient
+
+uploaded_file = st.file_uploader("Select video")
+# uploaded_file = './data/rutube/videos/pytest_videos/ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
 
 MOCKED = False
-base_videos_path = 'data/rutube/videos/pytest_videos'
+base_videos_path = 'data/rutube/videos/compressed_normalized_index'
 
 
 @dataclass
@@ -64,11 +71,35 @@ def processing_mock(legal_file_id, pirate_file_id) -> List[MatchedSegmentsPair]:
 @st.cache_resource
 def get_matcher():
     matcher_config = AVMatcherConfig(
-        query_interval_step=1.0,
+        query_interval_step=3.0,
+        enable_video_matching=True,
     )
+
+    qdrant_client = QdrantClient(host="qdrant", port=6333)
+    print("qdrant_client", qdrant_client)
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    # Visual modality
+    video_index = EmbeddingIndexFolder(
+        index_embeddings_dir='data/rutube/embeddings/video/index/',
+        collection_name="video_index",
+        # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        qdrant_client=qdrant_client,
+    )
+    visual_model = get_default_image_model_for_x_vector(
+        from_pretrained="data/models/image/efficient-net-b0/ruby-moon-17",
+    )
+    visual_model.to(device)
+    visual_model.eval()
+
+    vfp_config = VideoFingerPrinterConfig()
+    video_fingerprinter = VideoFingerPrinter(vfp_config, visual_model)
+
     audio_index = EmbeddingIndexFolder(
         index_embeddings_dir='data/rutube/embeddings/electric-yogurt-97/audio_index_embeddings/',
-        index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        collection_name="audio_index",
+        # index_embeddings_files=[ 'ded3d179001b3f679a0101be95405d2c.pt' ],
+        qdrant_client=qdrant_client,
     )
     
     audio_validation_figerprinter_config = AudioFingerPrinterConfig(
@@ -77,7 +108,6 @@ def get_matcher():
     )
 
     model, feature_extractor = get_default_audio_model()
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model.eval()
     model.to(device)
 
@@ -91,6 +121,8 @@ def get_matcher():
         matcher_config,
         audio_index=audio_index,
         audio_fingerprinter=audio_validation_fingerprinter,
+        video_index=video_index,
+        video_fingerprinter=video_fingerprinter,
     )
 
     return avmatcher
@@ -121,30 +153,24 @@ def render_file_match(mbf: MatchesByFile):
 
 if uploaded_file is not None:
 
-    print("uploaded_file", uploaded_file)
+    with NamedTemporaryFile(dir='.', suffix='.mp4') as f:
+        f.write(uploaded_file.getbuffer())
+        print("uploaded_file", uploaded_file)
+        print("f.name", f.name)
 
-    if MOCKED:
-        legal_video = 'ded3d179001b3f679a0101be95405d2c.mp4'
-        pirate_videp = 'ydcrodwtz3mstjq1vhbdflx6kyhj3y0p.mp4'
-
-        matches = processing_mock(
-            os.path.join(base_videos_path, legal_video),
-            os.path.join(base_videos_path, pirate_videp),
-        )
-    else:
         avmatcher = get_matcher()
-        matches = avmatcher.find_matches(uploaded_file, cleanup=False)
+        matches = avmatcher.find_matches(f.name, cleanup=False)
 
-    matches_by_file = {}
+        matches_by_file = {}
 
-    for match in matches:
-        if match.licensed_segment.file_id in matches_by_file:
-            matches_by_file[match.licensed_segment.file_id].matches.append(match)
-        else:
-            matches_by_file[match.licensed_segment.file_id] = MatchesByFile(
-                file_id= match.licensed_segment.file_id,
-                matches=[match]
-            )
+        for match in matches:
+            if match.licensed_segment.file_id in matches_by_file:
+                matches_by_file[match.licensed_segment.file_id].matches.append(match)
+            else:
+                matches_by_file[match.licensed_segment.file_id] = MatchesByFile(
+                    file_id= match.licensed_segment.file_id,
+                    matches=[match]
+                )
 
-    for file_id in matches_by_file:
-        render_file_match(matches_by_file[file_id])
+        for file_id in matches_by_file:
+            render_file_match(matches_by_file[file_id])
