@@ -14,7 +14,7 @@ class EmbeddingIndexFolder():
                  index_embeddings_files=None,
                  collection_name='audio_index',
                  distance_metric=models.Distance.DOT,
-                 qdrant_client=QdrantClient(":memory:"),
+                 qdrant_client=None,
                 ):
         
         self.collection_name = collection_name
@@ -43,8 +43,11 @@ class EmbeddingIndexFolder():
                 index_points.append(index_point)
 
         print("idx_point_i", idx_point_i)
-
-        self.qdrant = qdrant_client
+        
+        if qdrant_client is not None:
+            self.qdrant = qdrant_client
+        else:
+            self.qdrant = QdrantClient(":memory:"),
 
         embedding_size = embedding.shape[1]
         self.qdrant.create_collection(
