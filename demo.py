@@ -174,3 +174,8 @@ if uploaded_file is not None:
 
         for file_id in matches_by_file:
             render_file_match(matches_by_file[file_id])
+
+    if st.button("Загрузить видео в индекс"):
+        file_id = uploaded_file.name.removesuffix(".mp4")
+        st.write(f"Ожидайте, это может занять какое-то время. file_id={file_id}")
+        avmatcher.add_to_index(f.name, file_id=file_id, cleanup=False)

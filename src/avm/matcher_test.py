@@ -330,3 +330,4 @@ def test_trim_intervals_with_visual_modality():
     assert abs(trimmed_intervals[0].licensed_segment.end_second - expected_matched_intervals[0].licensed_segment.end_second) < 1e-4
 
     return
+
