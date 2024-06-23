@@ -76,8 +76,8 @@ def get_matcher():
         enable_video_matching=True,
     )
 
-    # qdrant_client = QdrantClient(host="qdrant", port=6333)
-    qdrant_client = QdrantClient(host="localhost", port=6333)
+    qdrant_client = QdrantClient(host="qdrant", port=6333)
+    # qdrant_client = QdrantClient(host="localhost", port=6333)
     print("qdrant_client", qdrant_client)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

@@ -171,7 +171,6 @@ if __name__ == '__main__':
     # query_hits_files = os.listdir(query_hits_dir)
 
     # query_hits_dir = 'data/rutube/embeddings/electric-yogurt-97/search_val_embeddings_10s_query_step_1000ms/'
-    
 
     query_hits_files = os.listdir(query_hits_dir)
     query_interval_step = 1.0

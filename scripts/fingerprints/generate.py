@@ -162,11 +162,11 @@ if __name__ == '__main__':
     # index_config = FingerprintIndexAudios()
     # generate_fingerprints(index_config)
 
-    # val_config = FingerprintValAudios()
-    # generate_fingerprints(val_config)
+    val_config = FingerprintValAudios()
+    generate_fingerprints(val_config)
 
-    test_config = FingerprintTestAudios()
-    generate_fingerprints(test_config)
+    # test_config = FingerprintTestAudios()
+    # generate_fingerprints(test_config)
 
     # embeddings_out_dir = test_config.embeddings_out_dir
     # test_files = os.listdir(embeddings_out_dir)
