@@ -104,7 +104,8 @@ def get_matcher():
     
     audio_validation_figerprinter_config = AudioFingerPrinterConfig(
         interval_step=matcher_config.query_interval_step,
-        batch_size=10,
+        # batch_size=10,
+        batch_size=1,
     )
 
     model, feature_extractor = get_default_audio_model()
@@ -151,17 +152,25 @@ def render_file_match(mbf: MatchesByFile):
     col2.video(match_bytes, start_time=selected.licensed_segment.start_second, end_time=selected.licensed_segment.end_second)
 
 
-if uploaded_file is not None:
+# if uploaded_file is not None:
+if True:
 
-    with NamedTemporaryFile(dir='.', suffix='.mp4') as f:
-        f.write(uploaded_file.getbuffer())
+    with NamedTemporaryFile(dir='/tmp', suffix='.mp4') as f:
+        # f.write(uploaded_file.getbuffer())
         print("uploaded_file", uploaded_file)
         print("f.name", f.name)
 
+        file_path = f.name
+        file_path = '/workspaces-devcontainers/lct_2024/tmpv2c6q9_f.mp4'
+
         avmatcher = get_matcher()
-        matches = avmatcher.find_matches(f.name, cleanup=False)
+        matches = avmatcher.find_matches(file_path, cleanup=False)
 
         matches_by_file = {}
+
+        if len(matches) == 0:
+            st.write(f"Совпадений не найдено")
+
 
         for match in matches:
             if match.licensed_segment.file_id in matches_by_file:
@@ -178,4 +187,4 @@ if uploaded_file is not None:
     if st.button("Загрузить видео в индекс"):
         file_id = uploaded_file.name.removesuffix(".mp4")
         st.write(f"Ожидайте, это может занять какое-то время. file_id={file_id}")
-        avmatcher.add_to_index(f.name, file_id=file_id, cleanup=False)
+        avmatcher.add_to_index(file_path, file_id=file_id, cleanup=False)

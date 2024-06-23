@@ -47,18 +47,26 @@ class EmbeddingIndexFolder():
             assert len(embeddings_files) > 0, "index cant be empty"
 
             idx_point_count = 0
+            print("reading points from disk", len(embeddings_files))
+            all_points = []
             for file_name in embeddings_files:
                 embedding = torch.load(os.path.join(index_embeddings_dir, file_name))
                 file_id = file_name.removesuffix('.pt')
                 
                 idx_point_count += embedding.shape[0]
-                self.load_embeddings(embedding, file_id)
+                index_points = self.load_embeddings(embedding, file_id)
+                all_points.extend(index_points)
 
-            print("idx_point_count", idx_point_count)
+            print("uploading points to qdrant collection", idx_point_count)
+            self.qdrant.upload_points(
+                collection_name=self.collection_name,
+                points=index_points,
+            )
+
 
         return
 
-    def load_embeddings(self, embedding, file_id):
+    def load_embeddings(self, embedding, file_id, upload_points=False):
         index_points = []
         for interval_num in range(embedding.shape[0]):
             index_point = models.PointStruct(
@@ -68,12 +76,13 @@ class EmbeddingIndexFolder():
             )
             index_points.append(index_point)
 
-        self.qdrant.upload_points(
-            collection_name=self.collection_name,
-            points=index_points,
-        )
+        if upload_points:
+            self.qdrant.upload_points(
+                collection_name=self.collection_name,
+                points=index_points,
+            )
 
-        return
+        return index_points
 
     def scroll(self, scroll_filter):
         return self.qdrant.scroll(

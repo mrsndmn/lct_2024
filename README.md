@@ -7,7 +7,6 @@
 ```
 # скачает веса моделей и поместит их по нужным путям
 bash scripts/data/download_demo_files.sh
-# скачает веса моделей и поместит их по нужным путям
 docker-compose build # это может занять значительное время ~30 минут
 docker-compose up
 # открываем урл, который вывел стримлит http://localhost:8501
@@ -135,7 +134,7 @@ print("matches", matches)
 ```
 # тест-бенчмарк, как расстояние влияет
 # на скорость работы векторного поиска
-pytest -s src/avm/search/audio_test.py
+pytest -s src/avm/search/index_test.py
 
 metric=Dot     embedding_size=64       time=0.005
 metric=Dot     embedding_size=128      time=0.007

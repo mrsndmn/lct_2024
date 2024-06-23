@@ -61,7 +61,7 @@ class AudioFingerPrinter():
             inputs_shifted.append(current_interval)
 
         inputs_shifted = torch.cat(inputs_shifted, dim=0)
-        # print("inputs_shifted", inputs_shifted.shape)
+        print("inputs_shifted", inputs_shifted.shape)
 
         batch_size = self.config.batch_size
         with torch.no_grad():
@@ -69,7 +69,9 @@ class AudioFingerPrinter():
             for i in tqdm(range(0, inputs_shifted.shape[0], batch_size), desc="audio fingerprinting"):
 
                 max_index = min(i+batch_size, inputs_shifted.shape[0])
-                embeddings = self.model(input_values=inputs_shifted[i:max_index].to(self.model.device)).embeddings
+                model_input_values = inputs_shifted[i:max_index].to(self.model.device)
+                print("model_input_values", model_input_values.shape)
+                embeddings = self.model(input_values=model_input_values).embeddings
 
                 if self.config.embeddings_normalization:
                     embeddings = embeddings / (embeddings.norm(dim=-1, keepdim=True) + 1e-6)
