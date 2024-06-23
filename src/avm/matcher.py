@@ -57,7 +57,7 @@ class AVMatcherConfig:
     # Мерджим сегменты, если у них разница во времени меньше X секунд
     merge_segments_with_diff_seconds:float = field(default=10.)
     # Удаляем сегменты, которые длятся менее X секунд
-    segment_min_duration:int = field(default=10)
+    segment_min_duration:int = field(default=20)
     # Удаляем сматченные эмбэддинги, которые отличаются больше, чем на
     # заданнный трешолд
     threshold: float = field(default=0.93)
@@ -269,7 +269,7 @@ class AVMatcher():
         audio_fingerprints: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file)
         audio_fingerprints = audio_fingerprints.cpu().numpy()
         print("loading audio fingerprint to qdrant")
-        self.audio_index.load_embeddings(audio_fingerprints, file_id)
+        self.audio_index.load_embeddings(audio_fingerprints, file_id, upload_points=True)
 
         if self.config.enable_video_matching:
             normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
@@ -278,8 +278,8 @@ class AVMatcher():
             video_fingerprints = self.video_fingerprinter.fingerprint_from_file(normalized_video_file)
             video_fingerprints = video_fingerprints.cpu().numpy()
 
-            print("loading video fingerprint to qdtant")
-            self.video_index.load_embeddings(video_fingerprints, file_id)
+            print("loading video fingerprint to qdrant")
+            self.video_index.load_embeddings(video_fingerprints, file_id, upload_points=True)
             
             if cleanup:
                 os.remove(normalized_video_file)

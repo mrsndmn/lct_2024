@@ -54,7 +54,7 @@ class EmbeddingIndexFolder():
                 file_id = file_name.removesuffix('.pt')
                 
                 idx_point_count += embedding.shape[0]
-                index_points = self.load_embeddings(embedding, file_id)
+                index_points = self.load_embeddings(embedding, file_id, upload_points=False)
                 all_points.extend(index_points)
 
             print("uploading points to qdrant collection", idx_point_count)
@@ -66,7 +66,7 @@ class EmbeddingIndexFolder():
 
         return
 
-    def load_embeddings(self, embedding, file_id, upload_points=False):
+    def load_embeddings(self, embedding, file_id, upload_points=True):
         index_points = []
         for interval_num in range(embedding.shape[0]):
             index_point = models.PointStruct(
