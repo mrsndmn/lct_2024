@@ -19,4 +19,4 @@ RUN mkdir -p /tmp/avmatcher/normalized_videos
 
 RUN pip install av
 
-ENTRYPOINT streamlit run demo.py
+CMD streamlit run demo.py

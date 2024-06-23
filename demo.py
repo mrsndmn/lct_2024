@@ -4,6 +4,7 @@ from src.avm.matcher import MatchedSegmentsPair, Segment
 from typing import List
 from dataclasses import dataclass
 import time
+import shutil
 
 from avm.matcher import AVMatcherConfig, AVMatcher, MatchedSegmentsPair, Segment, get_matched_segments, _merge_intersectioned_segments
 from avm.search.index import EmbeddingIndexFolder
@@ -76,6 +77,7 @@ def get_matcher():
     )
 
     qdrant_client = QdrantClient(host="qdrant", port=6333)
+    # qdrant_client = QdrantClient(host="localhost", port=6333)
     print("qdrant_client", qdrant_client)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -127,6 +129,12 @@ def get_matcher():
 
     return avmatcher
 
+@st.cache_resource
+def find_matches(file_path):
+    avmatcher = get_matcher()
+    matches = avmatcher.find_matches(file_path, cleanup=False)
+    return matches
+
 
 def render_file_match(mbf: MatchesByFile):
     container = st.container(border=True)
@@ -152,25 +160,39 @@ def render_file_match(mbf: MatchesByFile):
 
 
 if uploaded_file is not None:
+    file_path = f"/tmp/{uploaded_file.file_id}.mp4"
 
-    with NamedTemporaryFile(dir='.', suffix='.mp4') as f:
-        f.write(uploaded_file.getbuffer())
-        print("uploaded_file", uploaded_file)
-        print("f.name", f.name)
+    if not os.path.exists(file_path):
+        with open(file_path, 'wb') as f:
+            f.write(uploaded_file.getbuffer())
 
-        avmatcher = get_matcher()
-        matches = avmatcher.find_matches(f.name, cleanup=False)
+    matches = find_matches(file_path)
 
-        matches_by_file = {}
+    matches_by_file = {}
 
-        for match in matches:
-            if match.licensed_segment.file_id in matches_by_file:
-                matches_by_file[match.licensed_segment.file_id].matches.append(match)
-            else:
-                matches_by_file[match.licensed_segment.file_id] = MatchesByFile(
-                    file_id= match.licensed_segment.file_id,
-                    matches=[match]
-                )
+    print("matches", matches)
 
-        for file_id in matches_by_file:
-            render_file_match(matches_by_file[file_id])
+    if len(matches) == 0:
+        st.write(f"Совпадений не найдено")
+
+    for match in matches:
+        if match.licensed_segment.file_id in matches_by_file:
+            matches_by_file[match.licensed_segment.file_id].matches.append(match)
+        else:
+            matches_by_file[match.licensed_segment.file_id] = MatchesByFile(
+                file_id= match.licensed_segment.file_id,
+                matches=[match]
+            )
+
+    for file_id in matches_by_file:
+        render_file_match(matches_by_file[file_id])
+
+    if st.button("Загрузить видео в индекс"):
+        file_id = uploaded_file.name.removesuffix(".mp4")
+        st.write(f"Ожидайте, это может занять какое-то время. file_id={file_id}")
+        get_matcher().add_to_index(file_path, file_id=file_id, cleanup=False)
+        st.write(f"Готово! Видео загружено в индекс! file_id={file_id}")
+
+        index_videos_file_path = os.path.join(base_videos_path, uploaded_file.name)
+        print("copy file to indexed videos dir", index_videos_file_path)
+        shutil.copyfile(file_path, index_videos_file_path)

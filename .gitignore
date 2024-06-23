@@ -11,3 +11,4 @@ __pycache__
 *.ipynb
 jupyter
 qdrant_data
+*.zip

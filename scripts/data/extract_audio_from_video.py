@@ -34,6 +34,6 @@ if __name__ == '__main__':
         output_file_name = audio_prefix + "/" + output_file_name
 
         video_full_path = video_prefix + '/' + mp4_file
-        exit_code = os.system(f"ffmpeg -i {video_full_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {output_file_name}")
+        exit_code = os.system(f"ffmpeg -y -i {video_full_path} -vn -acodec pcm_s16le -ar 16000 -ac 1 {output_file_name}")
         assert exit_code == 0, f"{exit_code} != 0; mp4_file={video_full_path}, output_file_name={output_file_name}"
 

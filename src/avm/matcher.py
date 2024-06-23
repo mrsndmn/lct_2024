@@ -57,7 +57,7 @@ class AVMatcherConfig:
     # Мерджим сегменты, если у них разница во времени меньше X секунд
     merge_segments_with_diff_seconds:float = field(default=10.)
     # Удаляем сегменты, которые длятся менее X секунд
-    segment_min_duration:int = field(default=10)
+    segment_min_duration:int = field(default=20)
     # Удаляем сматченные эмбэддинги, которые отличаются больше, чем на
     # заданнный трешолд
     threshold: float = field(default=0.93)
@@ -88,19 +88,20 @@ class AVMatcher():
 
         os.makedirs(self.config.extracted_audios_dir, exist_ok=True)
 
-    def find_matches(self, video_full_path: str, cleanup=True) -> List[MatchedSegmentsPair]:
+    def find_matches(self, video_full_path: str, cleanup=True, file_id=None) -> List[MatchedSegmentsPair]:
 
         assert video_full_path.endswith(".mp4")
-        
-        file_id = os.path.basename(video_full_path).removesuffix(".mp4")
+
+        if file_id is None:
+            file_id = os.path.basename(video_full_path).removesuffix(".mp4")
 
         # Audio Matching
-        print("extracting audio from video")        
+        print("extracting audio from video")
         audio_file: str = self.extract_audio_from_video_file(video_full_path, file_id=file_id)
         print("audio file extracted", audio_file)
 
         audio_matched_intervals = self.find_audio_only_matches(audio_file, file_id=file_id)
-        
+
         result_mathing_intervals = audio_matched_intervals
 
         # Video Matching for trimming audio intervals
@@ -211,8 +212,6 @@ class AVMatcher():
             # always append interval!
             trimmed_matched_intervals.append(interval)
 
-
-
         return trimmed_matched_intervals
     
     def normalize_video(self, video_full_path, file_id):
@@ -226,7 +225,7 @@ class AVMatcher():
         return normalize_video_for_matching(video_full_path, normalized_video_full_path)
 
     def find_audio_only_matches(self, audio_file, file_id) -> List[MatchedSegmentsPair]:
-        
+
         print("fingerprinting audio")
         query_audio_embeddings: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file)
         print("query_audio_embeddings", query_audio_embeddings.shape)
@@ -255,6 +254,40 @@ class AVMatcher():
             raise Exception(f"can't extract audio: {exit_code}")
 
         return audio_full_path
+    
+    def add_to_index(self, video_full_path, cleanup=True, file_id=None):
+        
+        if file_id is None:
+            file_id = os.path.basename(video_full_path).removesuffix(".mp4")
+
+        # todo reuse normalized audio and video if possible
+        print("extracting audio from video")
+        audio_file: str = self.extract_audio_from_video_file(video_full_path, file_id=file_id)
+        print("audio file extracted", audio_file)
+
+        print("generating audio fingerprint")
+        audio_fingerprints: torch.Tensor = self.audio_fingerprinter.fingerprint_from_file(audio_file)
+        audio_fingerprints = audio_fingerprints.cpu().numpy()
+        print("loading audio fingerprint to qdrant")
+        self.audio_index.load_embeddings(audio_fingerprints, file_id, upload_points=True)
+
+        if self.config.enable_video_matching:
+            normalized_video_file = self.normalize_video(video_full_path, file_id=file_id)
+
+            print("generating video fingerprint")
+            video_fingerprints = self.video_fingerprinter.fingerprint_from_file(normalized_video_file)
+            video_fingerprints = video_fingerprints.cpu().numpy()
+
+            print("loading video fingerprint to qdrant")
+            self.video_index.load_embeddings(video_fingerprints, file_id, upload_points=True)
+            
+            if cleanup:
+                os.remove(normalized_video_file)
+
+        if cleanup:
+            os.remove(audio_file)
+
+        return
 
 
 def _merge_intersectioned_segments(config, input_segments: List[MatchedSegmentsPair], debug=False) -> List[MatchedSegmentsPair]:

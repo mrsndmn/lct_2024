@@ -1,17 +1,26 @@
 
 # Техническая документация
 
+TODO добавить ссылку на дифф с предыдущей версии
+
 
 # Быстрый старт
+
+**Важно!** На макбуке с `M1` очень долго будет инференситься. Вероятно, из-за того
+что докер на M1 запускается в эмуляторе и не поддерживает большую часть оптимизаций
+и рапрапараллеливание вычислений (грузится только одно ядро).
+Поэтому рекомендуется тестировать и воспроизводить результаты на `Linix`.
+Или если на маке, то не в докере.
 
 ```
 # скачает веса моделей и поместит их по нужным путям
 bash scripts/data/download_demo_files.sh
-# скачает веса моделей и поместит их по нужным путям
-docker-compose build
-docker-compose up
+docker compose build # это может занять значительное время ~30 минут
+docker compose up
 # открываем урл, который вывел стримлит http://localhost:8501
 ```
+
+Воспроизводимость проверил на виртуалке ubuntu 
 
 # Глоссарий
 * **Эмбэддинг** -- это вектор, который характеризует отрывок видео/аудио. Его генерит нейронка.
@@ -62,7 +71,7 @@ docker-compose up
 Количество обучаемых параметров `~11М`.
 
 Эта модель на вход принимает сырую волну (не мелспектрограмму),
-предобрабатывает с помощью сверток, уменьшая размерность последовательности,
+предобрабатывает с помощью одномерных сверток, уменьшая размерность последовательности,
 и на меньших размерностях применяет слои внимания, трансформерные блоки.
 
 Для обучения с помощью ф-ии потерь `CLIP` нужна пара данных.
@@ -79,6 +88,7 @@ docker-compose up
 ## Получение слепка для видео
 
 Для слепков видео используется скелет от `efficient-net-b0`.
+Так как это вычислительно легковесная и качественная модель.
 
 Ф-я потерь точно такая же как для задачи аудио.
 
@@ -96,7 +106,31 @@ docker-compose up
 ![Процесс загрузки](img/fill_proc.png)
 Отдельно обрабатываются аудио и кадры. Для каждого видео выполняется нормализация, формирование фингерпирнтов(эмбедингов) и их сохранение а БД.
 
+**Пример кода:**
+```python
+from demo import get_matcher
+
+avmatcher = get_matcher()
+
+# TODO протестировать это!
+path_to_video = "/tmp/test_video.mp4"
+avmatcher.add_to_index(path_to_video, file_id="test_video") # можно явно переопределить file_id, если нужно, чтобы он отличался
+```
+
 # Процесс поиска видео по базе
+
+**Пример кода:**
+```python
+from demo import get_matcher
+from avm.matcher import MatchedSegmentsPair
+
+avmatcher = get_matcher()
+
+path_to_video = "/tmp/test_video.mp4"
+matches: List[MatchedSegmentsPair] = avmatcher.find_matches(path_to_video, file_id="test_video") # можно явно переопределить file_id, если нужно, чтобы он отличался
+
+print("matches", matches)
+```
 
 ### Выбор метрики для схожести слепков
 
@@ -110,7 +144,7 @@ docker-compose up
 ```
 # тест-бенчмарк, как расстояние влияет
 # на скорость работы векторного поиска
-pytest -s src/avm/search/audio_test.py
+pytest -s src/avm/search/index_test.py
 
 metric=Dot     embedding_size=64       time=0.005
 metric=Dot     embedding_size=128      time=0.007
@@ -156,8 +190,22 @@ threshold                   0.9
 такой интервал нужно отбросить -- это ложно положительное срабатывание.
 
 
-
 #### Алгоритм поиска взаимствований по видео
+
+Слепки видео используются только как способ уточнить
+интервалы, полученные с помощью алгоритма для поиска
+взаимствований по аудио.
+
+Метод `AVMatcher.trim_intervals_with_visual_modality`
+уточняет границы предсказанного интервала
+с помощью модальности видео. Может смещать и ли расширять границы
+интервалов.
+
+Алгоритм работы метода:
+* Сначала выравниваем время интервала для исходного и лицензионного файла
+* Вычисляем исходя из длительности интервала новое окончание
+* Проверяем, можем ли мы увеличить длительность интервала?
+
 
 
 ## Возможные оптимизации
@@ -190,7 +238,8 @@ threshold                   0.9
 количества соседей и усложнение эвристик.
 
 Еще одно направление для исследований -- уйти от эвристик и
-обучить отдельную модель для определения заимствований.
+обучить отдельную модель для определения заимствований
+(например, на основе бустинга).
 
 # Основные взаимодействия с интерфейсом системы.
 
@@ -198,7 +247,7 @@ threshold                   0.9
 Для выбранного файла будет выведен список из N видео в которых найдены заимствования. 
 Для каждого найденного видео можно переключаться между интервалами.
 
-# Масштабируемость 
+# Масштабируемость
 
 Сервис проверки заимстований (AVM) отвечает за нормализацию видео и извлечение эмбединогов, а также за бизнес логику по оределению заимстований. Этот сервис - stateless соответственно может легко масштабироваться как вертикально так и горизонтально без ограничений.  
 Qdrant используется для хранения эмбедингов и поиска KNN. Может масштабироваться вертикально и горизонтально (шардирование). Возможности горизонтального масштабирования ограничены. 
@@ -249,13 +298,13 @@ threshold 0.99  final_iou 0.051         f1 0.395        final_metric_value 0.09
 ============================================
 query_interval_step         2
 query_hits_intervals_step   2
-threshold 0.86  final_iou 0.6   f1 0.884        final_metric_value 0.714
+threshold 0.86  final_iou 0.6           f1 0.884        final_metric_value 0.714
 threshold 0.87  final_iou 0.595         f1 0.878        final_metric_value 0.709
 threshold 0.88  final_iou 0.594         f1 0.872        final_metric_value 0.706
 threshold 0.89  final_iou 0.619         f1 0.884        final_metric_value 0.728
 threshold 0.9   final_iou 0.609         f1 0.874        final_metric_value 0.718
-threshold 0.91  final_iou 0.6   f1 0.869        final_metric_value 0.71
-threshold 0.92  final_iou 0.62  f1 0.877        final_metric_value 0.726
+threshold 0.91  final_iou 0.6           f1 0.869        final_metric_value 0.71
+threshold 0.92  final_iou 0.62          f1 0.877        final_metric_value 0.726
 threshold 0.93  final_iou 0.617         f1 0.878        final_metric_value 0.725
 threshold 0.94  final_iou 0.623         f1 0.88         final_metric_value 0.73
 threshold 0.95  final_iou 0.586         f1 0.871        final_metric_value 0.701
@@ -264,28 +313,16 @@ threshold 0.97  final_iou 0.341         f1 0.752        final_metric_value 0.47
 threshold 0.98  final_iou 0.205         f1 0.629        final_metric_value 0.309
 threshold 0.99  final_iou 0.029         f1 0.323        final_metric_value 0.053
 
-
-============================================
-query_interval_step         3
-query_hits_intervals_step   3
-threshold 0.86  final_iou 0.611         f1 0.874        final_metric_value 0.72
-threshold 0.95  final_iou 0.586         f1 0.871        final_metric_value 0.701                              [11/1962]
-threshold 0.96  final_iou 0.486         f1 0.839        final_metric_value 0.616
-threshold 0.97  final_iou 0.341         f1 0.752        final_metric_value 0.47
-threshold 0.98  final_iou 0.205         f1 0.629        final_metric_value 0.309
-threshold 0.99  final_iou 0.029         f1 0.323        final_metric_value 0.053
-
-
 ============================================
 query_interval_step         3
 query_hits_intervals_step   3
 threshold 0.86  final_iou 0.611         f1 0.874        final_metric_value 0.72
 threshold 0.87  final_iou 0.619         f1 0.877        final_metric_value 0.726
 threshold 0.88  final_iou 0.629         f1 0.877        final_metric_value 0.733
-threshold 0.89  final_iou 0.64  f1 0.879        final_metric_value 0.741
+threshold 0.89  final_iou 0.64          f1 0.879        final_metric_value 0.741
 threshold 0.9   final_iou 0.649         f1 0.885        final_metric_value 0.749
 threshold 0.91  final_iou 0.633         f1 0.886        final_metric_value 0.738
-threshold 0.92  final_iou 0.62  f1 0.877        final_metric_value 0.726
+threshold 0.92  final_iou 0.62          f1 0.877        final_metric_value 0.726
 threshold 0.93  final_iou 0.587         f1 0.866        final_metric_value 0.7
 threshold 0.94  final_iou 0.554         f1 0.856        final_metric_value 0.673
 threshold 0.95  final_iou 0.484         f1 0.833        final_metric_value 0.612
@@ -295,12 +332,16 @@ threshold 0.98  final_iou 0.136         f1 0.553        final_metric_value 0.218
 threshold 0.99  final_iou 0.018         f1 0.268        final_metric_value 0.033
 ```
 
-## Длинна интервала 10 секунд 
+## Длинна интервала 10 секунд
 
 При увеличении длинны интервала получаем плохие значения метрик.
-Возможно, из-за того, что моделька обучалась именно на 5-секундных интервалах.
 
-Увеличение длинны интервала немного удлинняет скорость генерации фингерпринтов.
+Есть 2 гипотзы, почему так происходит:
+* модель обучалась именно на 5-секундных интервалах
+* гиперпараметры для алгоритма на эвристиках были подобраны именно для 5-секундных
+отрезков. Для 10-секундных, возможно, нужны другие эвристики.
+
+Увеличение длинны интервала замедляет скорость генерации фингерпринтов.
 В 2 раза.
 
 
@@ -309,7 +350,7 @@ query_interval_step         1
 query_hits_intervals_step   1
 threshold 0.86  final_iou 0.053         f1 0.128        final_metric_value 0.075
 threshold 0.88  final_iou 0.088         f1 0.202        final_metric_value 0.122
-threshold 0.9   final_iou 0.17           f1 0.35         final_metric_value 0.229
+threshold 0.9   final_iou 0.17           f1 0.35        final_metric_value 0.229
 threshold 0.92  final_iou 0.234         f1 0.441        final_metric_value 0.306
 threshold 0.94  final_iou 0.268         f1 0.498        final_metric_value 0.348
 threshold 0.96  final_iou 0.304         f1 0.546        final_metric_value 0.391
